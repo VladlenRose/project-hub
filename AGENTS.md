@@ -8,3 +8,6 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+## Rules
+- Matching and bargaining between trade requests is deterministic code in src/lib/bargain.ts (tested with `bun test`); AI only rephrases results — keeps outcomes predictable and cheap.
