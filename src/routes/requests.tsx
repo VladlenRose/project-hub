@@ -19,6 +19,7 @@ import { analyzeRequestText } from "@/lib/requests.functions";
 import { recognizeImageText } from "@/lib/ocr.functions";
 import { ProductPicker, useProductSearch, type PickedProduct } from "@/components/product-picker";
 import { cn } from "@/lib/utils";
+import { VoiceButton } from "@/components/voice-button";
 
 const TITLE = "Торговые заявки AI-Mall — купить или продать с ИИ";
 const DESCRIPTION =
@@ -458,6 +459,7 @@ function RequestsPage() {
               {ocrBusy ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
               {ocrBusy ? "Распознаю…" : "Загрузить фото / PDF"}
             </Button>
+            <VoiceButton disabled={ocrBusy || analyzing} onText={(t) => setText((prev) => (prev.trim() ? prev.trim() + " " : "") + t)} />
             <Button onClick={() => runAnalyze()} disabled={analyzing || ocrBusy}>
               {analyzing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               Анализировать текст
