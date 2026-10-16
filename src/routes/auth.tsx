@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useServerFn } from "@tanstack/react-start";
+import { isValidInn } from "@/lib/inn";
+import { checkInn } from "@/lib/inn.functions";
 
 const TITLE = "Вход и регистрация — AI-Mall";
 const DESCRIPTION =
@@ -51,6 +54,8 @@ function AuthPage() {
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inn, setInn] = useState("");
+  const innCheck = useServerFn(checkInn);
 
   useEffect(() => {
     if (!loading && user) void navigate({ to: "/dashboard" });
@@ -72,9 +77,19 @@ function AuthPage() {
       toast.error("Укажите имя");
       return;
     }
+    if (mode === "register" && !isValidInn(inn)) {
+      toast.error("Неверный ИНН — проверьте цифры");
+      return;
+    }
 
     setBusy(true);
     try {
+      if (mode === "register") {
+        const r = await innCheck({ data: { inn: inn.trim() } });
+        if (r.status === "not_found") throw new Error("Организация с таким ИНН не найдена в ЕГРЮЛ/ЕГРИП");
+        if (r.status === "found" && !r.active) throw new Error(`«${r.name}» не действует (ликвидирована или в ликвидации)`);
+        if (r.status === "found" && !company.trim()) setCompany(r.name);
+      }
       if (mode === "login") {
         await login(email.trim(), password);
         toast.success("Добро пожаловать");
@@ -152,6 +167,17 @@ function AuthPage() {
                     onChange={(e) => setCompany(e.target.value)}
                     autoComplete="organization"
                     placeholder="ООО «Гранит Трейд»"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="a-inn">ИНН</Label>
+                  <Input
+                    id="a-inn"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={inn}
+                    onChange={(e) => setInn(e.target.value.replace(/\D/g, ""))}
+                    placeholder="10 или 12 цифр"
                   />
                 </div>
               </>
