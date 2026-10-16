@@ -1,3 +1,4 @@
+// @ts-expect-error — bun:test types are provided by the bun runtime (run: bun test)
 import { expect, test } from "bun:test";
 import { bargain, emptyParams } from "./bargain";
 
