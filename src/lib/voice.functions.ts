@@ -13,8 +13,8 @@ export const transcribeVoice = createServerFn({ method: "POST" })
     const key2 = process.env["GROQ_API_KEY2"];
     if (!key1 || !key2) throw new Error("Не заданы GROQ_API_KEY1 или GROQ_API_KEY2");
 
-    const [head, b64] = data.audio.split(",");
-    const mime = head.slice(5).split(";")[0];
+    const [head = "", b64 = ""] = data.audio.split(",");
+    const mime = head.slice(5).split(";")[0] || "audio/webm";
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
 
