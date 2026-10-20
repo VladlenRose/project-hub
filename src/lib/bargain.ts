@@ -91,7 +91,7 @@ export function matchScore(mine: Params, other: Params, titleSim = 1) {
 /* ---------------- торг ---------------- */
 
 export type Side = "buyer" | "seller";
-export type LogLine = { side: Side | "system"; text: string };
+export type LogLine = { side: Side | "system"; text: string; key?: ParamKey };
 export type Term = {
   key: ParamKey;
   value: string;
@@ -204,7 +204,9 @@ export function bargain(buyer: Params, seller: Params): BargainResult {
   );
   const terms: Term[] = [];
   for (const k of order) {
-    const t = RANGE_KEYS.includes(k) ? bargainRange(k, buyer[k], seller[k], log) : bargainValue(k, buyer[k], seller[k], log);
+    const detail = bargainParameter(k, buyer[k], seller[k]);
+    const t = detail.term;
+    log.push(...detail.log);
     if (t) terms.push(t);
   }
   const agreed = terms.length > 0 && terms.every((t) => t.buyerOk && t.sellerOk);
@@ -215,4 +217,11 @@ export function bargain(buyer: Params, seller: Params): BargainResult {
       : "Есть пункты вне условий — ботам нужно согласие людей.",
   });
   return { log, terms, agreed };
+}
+
+/** Recalculate one condition without touching the other conditions or their approvals. */
+export function bargainParameter(key: ParamKey, buyer: Param, seller: Param) {
+  const log: LogLine[] = [];
+  const term = RANGE_KEYS.includes(key) ? bargainRange(key, buyer, seller, log) : bargainValue(key, buyer, seller, log);
+  return { term, log: log.map((line) => ({ ...line, key })) };
 }
