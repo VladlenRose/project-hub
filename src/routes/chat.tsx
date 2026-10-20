@@ -75,7 +75,7 @@ function Chat() {
 
   return (
     <AppShell title="Чат-переговоры">
-      <div className="grid gap-4 lg:grid-cols-[280px_300px_minmax(0,1fr)]">
+      <div className="grid gap-4 sm:grid-cols-2">
         {/* 1. мои заявки */}
         <aside className="glass-panel h-fit overflow-hidden rounded-2xl">
           <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-dim">Мои заявки</div>
@@ -134,7 +134,7 @@ function Chat() {
         </aside>
 
         {/* 3. переговоры */}
-        <section className="glass-panel flex min-h-[70vh] flex-col overflow-hidden rounded-2xl">
+        <section className="flex min-h-[70vh] min-w-0 flex-col overflow-hidden border-t border-border sm:col-span-2">
           {!my || !other ? (
             <div className="grid flex-1 place-items-center p-8 text-center text-sm text-dim">
               Выберите свою заявку и встречную — агенты проведут торг по вашим приоритетам.
