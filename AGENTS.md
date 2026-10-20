@@ -11,3 +11,5 @@
 
 ## Rules
 - Matching and bargaining between trade requests is deterministic code in src/lib/bargain.ts (tested with `bun test`); AI only rephrases results — keeps outcomes predictable and cheap.
+- Negotiation snapshots and immutable versions are persisted through authenticated server functions and atomic service-only database RPCs after participant authorization; browser clients are read-only on these tables to prevent forged participants, approvals, or lost concurrent updates.
+- Parameter counteroffers use src/lib/negotiation.ts, preserve priorities, and reset human approvals only on the changed parameter; preview drafts never write to the database.

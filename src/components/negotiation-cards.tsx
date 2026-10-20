@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LABELS, type ParamKey, type TradeRequest } from "@/lib/bargain";
 import { describeDeal } from "@/lib/ai.functions";
 import { changeNegotiation, openNegotiation } from "@/lib/negotiations.functions";
-import { humansAgreed, proposeCondition, type Condition, type ConditionValues, type NegotiationSnapshot } from "@/lib/negotiation";
+import { humansAgreed, proposeCondition, type ConditionValues, type NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
 
 type Edit = { key: ParamKey; version: number; values: ConditionValues; preview: NegotiationSnapshot | null };
@@ -105,7 +105,7 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
           <div className="mt-2 space-y-2 border-l border-border pl-3 leading-relaxed text-dim">
             {shown.log.length === 0 && <p>{shown.term?.note ?? "Бот не предложил условий."}</p>}
             {shown.log.map((line, i) => <p key={i}><span className={cn("font-medium", line.side === side && "text-brand")}>{line.side === "system" ? "Результат" : line.side === side ? "Мой бот" : "Бот второй стороны"}:</span> {line.text}</p>)}
-            {shown.term && <p className="text-ink">Мой бот: предлагаю «{shown.term.value}». {side === "buyer" ? shown.term.buyerOk : shown.term.sellerOk ? "" : ""}{!(side === "buyer" ? shown.term.buyerOk : shown.term.sellerOk) && "Нужно ваше согласие на уступку."}</p>}
+            {shown.term && <p className="text-ink">Мой бот: предлагаю «{shown.term.value}». {!(side === "buyer" ? shown.term.buyerOk : shown.term.sellerOk) && "Нужно ваше согласие на уступку."}</p>}
           </div>
         </details>
         <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">

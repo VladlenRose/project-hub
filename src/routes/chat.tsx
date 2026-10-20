@@ -1,23 +1,21 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bot, Check, Handshake, Loader2, MessageCircle, Send, User, X } from "lucide-react";
+import { Bot, Handshake, Loader2, Send, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { NegotiationCards } from "@/components/negotiation-cards";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { describeDeal, negotiate } from "@/lib/ai.functions";
+import { negotiate } from "@/lib/ai.functions";
 import {
-  bargain,
-  LABELS,
   matchScore,
   titleSimilarity,
   withDefaults,
-  type BargainResult,
   type TradeRequest,
 } from "@/lib/bargain";
 import { cn } from "@/lib/utils";
@@ -152,7 +150,7 @@ function Chat() {
                 </div>
               </header>
               {mode === "bots" ? (
-                <BotsDeal key={my.id + other.id} my={my} other={other} />
+                <NegotiationCards key={my.id + other.id} my={my} other={other} />
               ) : (
                 <AgentChat key={my.id + other.id + "a"} my={my} other={other} />
               )}
@@ -179,94 +177,6 @@ function ModeBtn({ active, onClick, disabled, icon: Icon, children }: {
     >
       <Icon className="size-3.5" /> {children}
     </button>
-  );
-}
-
-function BotsDeal({ my, other }: { my: TradeRequest; other: TradeRequest }) {
-  const buyer = my.kind === "buy" ? my : other;
-  const seller = my.kind === "sell" ? my : other;
-  const iAm = my.kind === "buy" ? "buyer" : "seller";
-  const result: BargainResult = useMemo(() => bargain(buyer.params, seller.params), [buyer, seller]);
-  const [accepted, setAccepted] = useState<boolean | null>(null);
-  const explain = useServerFn(describeDeal);
-  const summary = useMutation({
-    mutationFn: () =>
-      explain({
-        data: {
-          title: `${buyer.title} / ${seller.title}`,
-          agreed: result.agreed,
-          terms: result.terms.map((t) => ({ label: LABELS[t.key], value: t.value, note: t.note })),
-        },
-      }),
-    onError: () => toast.error("ИИ сейчас недоступен"),
-  });
-
-  const sideName = (s: string) => (s === "buyer" ? "Бот покупателя" : s === "seller" ? "Бот продавца" : "Система");
-
-  return (
-    <div className="flex-1 space-y-6 overflow-y-auto p-6">
-      <div>
-        <div className="mb-2 text-xs uppercase tracking-wide text-dim">Лог переговоров</div>
-        <div className="space-y-1.5 rounded-xl bg-foreground/4 p-4 font-mono text-xs leading-relaxed">
-          {result.log.map((l, i) => (
-            <div key={i} className={cn(l.side === "system" ? "text-dim" : "text-ink")}>
-              <span className={cn("font-semibold", l.side === iAm && "text-brand")}>{sideName(l.side)}:</span> {l.text}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-2 text-xs uppercase tracking-wide text-dim">Предложение обеим сторонам</div>
-        <div className="overflow-hidden rounded-xl border border-border">
-          {result.terms.length === 0 && <div className="p-4 text-sm text-dim">В заявках не заполнены условия.</div>}
-          {result.terms.map((t) => (
-            <div key={t.key} className="grid grid-cols-[1fr_auto] gap-2 border-b border-border px-4 py-3 text-sm last:border-0">
-              <div>
-                <div className="text-dim">{LABELS[t.key]}</div>
-                <div className="font-medium text-ink">{t.value}</div>
-                <div className="text-xs text-dim">{t.note}</div>
-              </div>
-              <div className="flex items-start gap-1 text-xs">
-                <Badge ok={t.buyerOk}>Покуп.</Badge>
-                <Badge ok={t.sellerOk}>Прод.</Badge>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {summary.data?.text && (
-        <div className="rounded-xl bg-brand/6 p-4 text-sm leading-relaxed text-ink">{summary.data.text}</div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={summary.isPending} onClick={() => summary.mutate()}>
-          {summary.isPending ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
-          Пересказать по-человечески
-        </Button>
-        {accepted === null ? (
-          <>
-            <Button variant="hero" onClick={() => setAccepted(true)}><Check className="size-4" />Меня устраивает</Button>
-            <Button variant="outline" onClick={() => setAccepted(false)}><X className="size-4" />Не устраивает</Button>
-          </>
-        ) : (
-          <span className="self-center text-sm text-dim">
-            {accepted
-              ? "Ваше согласие отмечено. Ждём ответ второй стороны."
-              : "Измените приоритеты или условия в своей заявке — боты пересчитают торг."}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return (
-    <span className={cn("rounded-full px-2 py-0.5", ok ? "bg-brand/10 text-brand" : "bg-destructive/10 text-destructive")}>
-      {children} {ok ? "✓" : "✕"}
-    </span>
   );
 }
 
