@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -84,6 +84,47 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      negotiation_versions: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          id: string
+          negotiation_id: string
+          param_key: string | null
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          negotiation_id: string
+          param_key?: string | null
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          negotiation_id?: string
+          param_key?: string | null
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negotiation_versions_negotiation_id_fkey"
+            columns: ["negotiation_id"]
+            isOneToOne: false
+            referencedRelation: "request_negotiations"
             referencedColumns: ["id"]
           },
         ]
@@ -191,6 +232,57 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      request_negotiations: {
+        Row: {
+          buyer_id: string
+          buyer_request_id: string
+          created_at: string
+          id: string
+          seller_id: string
+          seller_request_id: string
+          snapshot: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          buyer_id: string
+          buyer_request_id: string
+          created_at?: string
+          id?: string
+          seller_id: string
+          seller_request_id: string
+          snapshot: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          buyer_id?: string
+          buyer_request_id?: string
+          created_at?: string
+          id?: string
+          seller_id?: string
+          seller_request_id?: string
+          snapshot?: Json
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_negotiations_buyer_request_id_fkey"
+            columns: ["buyer_request_id"]
+            isOneToOne: false
+            referencedRelation: "trade_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_negotiations_seller_request_id_fkey"
+            columns: ["seller_request_id"]
+            isOneToOne: false
+            referencedRelation: "trade_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       threads: {
         Row: {
@@ -334,6 +426,33 @@ export type Database = {
         Returns: undefined
       }
       claim_first_admin: { Args: never; Returns: boolean }
+      commit_request_negotiation: {
+        Args: {
+          _action: string
+          _actor: string
+          _expected: number
+          _id: string
+          _key: string
+          _snapshot: Json
+        }
+        Returns: {
+          buyer_id: string
+          buyer_request_id: string
+          created_at: string
+          id: string
+          seller_id: string
+          seller_request_id: string
+          snapshot: Json
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "request_negotiations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_product_from_request: {
         Args: {
           _attrs?: Json
@@ -367,6 +486,31 @@ export type Database = {
         }[]
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      open_request_negotiation: {
+        Args: {
+          _actor: string
+          _buyer: string
+          _seller: string
+          _snapshot: Json
+        }
+        Returns: {
+          buyer_id: string
+          buyer_request_id: string
+          created_at: string
+          id: string
+          seller_id: string
+          seller_request_id: string
+          snapshot: Json
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "request_negotiations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       product_pair_similarity: {
         Args: { _ids: string[]; _ref: string }
         Returns: {
