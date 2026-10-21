@@ -47,6 +47,47 @@ export const withDefaults = (p: Partial<Params> | null | undefined): Params => {
 const num = (s: string) => (s.trim() === "" ? null : Number(s));
 const round = (v: number, key: ParamKey) => (key === "price" ? Math.round(v * 100) / 100 : Math.round(v));
 
+/* ---------------- выгода сторон по параметрам ---------------- */
+
+/** Кому что выгодно по каждому параметру — показывается в карточках переговоров. */
+export const BENEFIT: Record<ParamKey, string> = {
+  qty: "Покупателю выгоднее больше, продавцу — меньше",
+  price: "Покупателю выгоднее дешевле, продавцу — дороже",
+  term: "Покупателю выгоднее быстрее, продавцу — дольше",
+  payment: "Покупателю выгоднее постоплата, продавцу — предоплата",
+  basis: "Покупателю выгоднее доставка силами поставщика, продавцу — самовывоз",
+  warranty: "Покупателю выгоднее длинная гарантия, продавцу — короткая",
+  regularity: "Покупателю выгоднее регулярные поставки, продавцу — разовая",
+};
+
+/** Типовая шкала текстовых условий: ранг 0 — лучшее для покупателя, последний — для продавца. */
+const VALUE_SCALES: Partial<Record<ParamKey, string[][]>> = {
+  payment: [["постоплата", "отсрочка"], ["50/50"], ["100% предоплата", "предоплата"]],
+  basis: [["доставка силами поставщика", "доставка поставщиком"], ["тк", "транспортная компания"], ["самовывоз"]],
+  regularity: [["еженедельно"], ["ежемесячно"], ["разовая", "разовый"]],
+};
+
+function scaleRank(key: ParamKey, value: string): { rank: number; scale: string[][] } | null {
+  const scale = VALUE_SCALES[key];
+  if (!scale) return null;
+  const v = value.toLowerCase();
+  for (let rank = 0; rank < scale.length; rank++)
+    if (scale[rank].some((alias) => v.includes(alias))) return { rank, scale };
+  return null;
+}
+
+/** Срок гарантии в месяцах: «12 мес», «1 год», «90 дней». Больше — выгоднее покупателю. */
+function warrantyMonths(value: string): number | null {
+  const m = value.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(лет|года|год|г\.?|мес\.?|дней|дн\.?)/);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  const u = m[2];
+  if (u.startsWith("л") || u.startsWith("г")) return n * 12;
+  if (u.startsWith("м")) return n;
+  return n / 30;
+}
+
 /* ---------------- подбор соответствий ---------------- */
 
 function overlap(a: Param, b: Param, key: ParamKey): number | null {
