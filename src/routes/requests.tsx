@@ -261,6 +261,44 @@ function RequestsPage() {
   const setP = (k: ParamKey, patch: Partial<Param>) =>
     setParams((p) => ({ ...p, [k]: { ...p[k], ...patch } }));
 
+  // Ориентир: похожие активные заявки по выбранному товару (или названию) — только подсказка, условия не меняет
+  const [market, setMarket] = useState<Stored[] | null>(null);
+  useEffect(() => {
+    if (mode !== "form") return;
+    let cancelled = false;
+    setMarket(null);
+    const load = async () => {
+      if (!product && seed.trim().length < 4) { if (!cancelled) setMarket([]); return; }
+      let q = supabase.from("trade_requests").select("id, owner_id, kind, title, params, extra, created_at, response_to, attachment_url, product_id").order("created_at", { ascending: false }).limit(100);
+      q = product ? q.eq("product_id", product.id) : q.ilike("title", `%${seed.trim()}%`);
+      const { data } = await q;
+      if (!cancelled) setMarket(((data ?? []) as unknown as Stored[]).filter((r) => r.id !== editing?.id));
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [mode, product, seed, editing?.id]);
+
+  const hints = useMemo(() => {
+    const out = {} as Record<ParamKey, string | null>;
+    for (const k of KEYS) {
+      out[k] = null;
+      if (!market?.length) continue;
+      const ps = market.map((r) => r.params?.[k]).filter((p): p is Param => !!p && !p.ignore);
+      if (RANGE[k] !== undefined) {
+        const nums = ps.flatMap((p) => [n(p.min), n(p.max)].filter((x): x is number => x !== null && Number.isFinite(x)));
+        if (!nums.length) continue;
+        const unit = k === "qty" ? (ps.find((p) => p.unit)?.unit ?? "") : RANGE[k];
+        out[k] = `${Math.min(...nums).toLocaleString("ru-RU")} — ${Math.max(...nums).toLocaleString("ru-RU")} ${unit}`.trim();
+      } else {
+        const counts = new Map<string, number>();
+        for (const p of ps) { const v = p.value.trim().toLowerCase(); if (v) counts.set(v, (counts.get(v) ?? 0) + 1); }
+        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (top) out[k] = `чаще: ${top[0]}`;
+      }
+    }
+    return out;
+  }, [market]);
+
   async function runOcr(f: File) {
     const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
     if (!isPdf && !f.type.startsWith("image/")) { toast.error("Загрузите изображение или PDF"); return; }
@@ -530,6 +568,12 @@ function RequestsPage() {
                       </div>
                     ) : (
                       <Input disabled={p.ignore} value={p.value} onChange={(e) => setP(k, { value: e.target.value })} placeholder="Условия гарантии и приемки" />
+                    )}
+                    {!p.ignore && market === null && (product || seed.trim().length >= 4) && (
+                      <p className="text-xs text-dim">Анализирую похожие заявки…</p>
+                    )}
+                    {!p.ignore && hints[k] && (
+                      <p className="text-xs text-brand">Ориентир по {market?.length ?? 0} похожим заявкам: {hints[k]}</p>
                     )}
                   </div>
                 </div>
