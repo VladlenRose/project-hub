@@ -4,9 +4,9 @@ import { FileSignature, MessagesSquare, Search } from "lucide-react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import mugs from "@/assets/product-mugs.jpg";
-import linen from "@/assets/product-linen.jpg";
-import tools from "@/assets/product-tools.jpg";
+import { useQuery } from "@tanstack/react-query";
+import { imageUrl, listCatalogProducts } from "@/lib/api";
+import { fallbackImage } from "@/lib/catalog-meta";
 
 const TITLE = "AI-Mall — умный B2B маркетплейс с ИИ-агентами";
 const DESCRIPTION =
@@ -44,38 +44,54 @@ const BENEFITS = [
   },
 ];
 
-const PRODUCTS = [
-  {
-    image: mugs,
-    alt: "Керамические кружки на стальной поверхности",
-    label: "Оригинал" as const,
-    meta: "Посуда · 240 шт",
-    title: "Керамические кружки «Монолит»",
-    price: "от 340 ₽",
-    rating: "4.9",
-    delay: "120ms",
-  },
-  {
-    image: linen,
-    alt: "Рулоны льняной ткани на стеллаже",
-    label: "Премиум" as const,
-    meta: "Текстиль · 1 200 м",
-    title: "Льняная ткань «Атлас»",
-    price: "от 890 ₽/м",
-    rating: "5.0",
-    delay: "200ms",
-  },
-  {
-    image: tools,
-    alt: "Набор алюминиевых инструментов на верстаке",
-    label: "Оригинал" as const,
-    meta: "Инструменты · 64 шт",
-    title: "Алюминиевый набор «Квант»",
-    price: "от 12 400 ₽",
-    rating: "4.8",
-    delay: "280ms",
-  },
-];
+function HomeProducts() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["products", "catalog"],
+    queryFn: listCatalogProducts,
+  });
+  const items = (data ?? []).filter((p) => p.status !== "Завершён").slice(0, 3);
+
+  if (isLoading) return <p className="text-sm text-dim">Загружаем товары…</p>;
+  if (items.length === 0)
+    return (
+      <p className="rounded-2xl bg-card p-8 text-center text-sm text-dim ring-1 ring-border">
+        Пока нет товаров. Опубликуйте первый товар в кабинете продавца.
+      </p>
+    );
+
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((p) => (
+        <article
+          key={p.$id}
+          className="overflow-hidden rounded-2xl bg-card ring-1 ring-border transition duration-300 hover:ring-brand/25"
+        >
+          <img
+            src={imageUrl(p.imageId) ?? fallbackImage(p.$id)}
+            alt={p.title}
+            loading="lazy"
+            className="aspect-[4/3] w-full object-cover"
+          />
+          <div className="p-5">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-dim">
+              {[p.category, p.supplier].filter(Boolean).join(" · ")}
+            </p>
+            <h3 className="mt-1.5 text-base font-semibold tracking-tight">{p.title}</h3>
+            <div className="mt-3 flex items-end justify-between">
+              <span className="text-lg font-semibold">
+                {(p.price ?? 0).toLocaleString("ru-RU")} ₽{p.unit ? ` / ${p.unit}` : ""}
+              </span>
+              <span className="font-mono text-xs text-dim">{p.rating || "—"}</span>
+            </div>
+            <Button variant="pill" className="mt-4 w-full" asChild>
+              <Link to="/catalog">Запросить предложение</Link>
+            </Button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
 
 const STEPS = [
   { n: 1, title: "Заявка", text: "Опишите потребность — агент разберёт параметры." },
@@ -175,48 +191,7 @@ function Index() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {PRODUCTS.map((p) => (
-                <article
-                  key={p.title}
-                  className="animate-rise overflow-hidden rounded-2xl bg-card ring-1 ring-border transition duration-300 hover:ring-brand/25"
-                  style={{ animationDelay: p.delay }}
-                >
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={p.image}
-                      alt={p.alt}
-                      loading="lazy"
-                      width={1024}
-                      height={768}
-                      className="aspect-[4/3] w-full object-cover"
-                    />
-                    {p.label === "Оригинал" ? (
-                      <span className="absolute left-3 top-3 rounded-full bg-exclusive px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-exclusive-foreground">
-                        Оригинал
-                      </span>
-                    ) : (
-                      <span className="absolute left-3 top-3 rounded-full border border-gold/60 bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gold">
-                        Премиум
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <p className="font-mono text-[11px] uppercase tracking-wider text-dim">
-                      {p.meta}
-                    </p>
-                    <h3 className="mt-1.5 text-base font-semibold tracking-tight">{p.title}</h3>
-                    <div className="mt-3 flex items-end justify-between">
-                      <span className="text-lg font-semibold">{p.price}</span>
-                      <span className="font-mono text-xs text-dim">{p.rating}</span>
-                    </div>
-                    <Button variant="pill" className="mt-4 w-full">
-                      Запросить предложение
-                    </Button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <HomeProducts />
           </div>
         </section>
 
@@ -279,15 +254,10 @@ function Index() {
                   </div>
                   <div className="flex justify-start">
                     <p className="max-w-[80%] rounded-2xl rounded-tl-sm bg-mist px-3.5 py-2.5 text-sm">
-                      Фиксируем 840 ₽/м при 1 200 м. Сформировать договор?
+                      Фиксируем 840 ₽/м при 1 200 м.
                     </p>
                   </div>
                 </div>
-
-                <Button variant="hero" className="mt-4 h-11 w-full">
-                  <span className="relative z-10">Сформировать договор</span>
-                  <span aria-hidden className="sheen" />
-                </Button>
               </div>
             </div>
           </div>
