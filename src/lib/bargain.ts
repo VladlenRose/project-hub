@@ -47,6 +47,47 @@ export const withDefaults = (p: Partial<Params> | null | undefined): Params => {
 const num = (s: string) => (s.trim() === "" ? null : Number(s));
 const round = (v: number, key: ParamKey) => (key === "price" ? Math.round(v * 100) / 100 : Math.round(v));
 
+/* ---------------- выгода сторон по параметрам ---------------- */
+
+/** Кому что выгодно по каждому параметру — показывается в карточках переговоров. */
+export const BENEFIT: Record<ParamKey, string> = {
+  qty: "Покупателю выгоднее больше, продавцу — меньше",
+  price: "Покупателю выгоднее дешевле, продавцу — дороже",
+  term: "Покупателю выгоднее быстрее, продавцу — дольше",
+  payment: "Покупателю выгоднее постоплата, продавцу — предоплата",
+  basis: "Покупателю выгоднее доставка силами поставщика, продавцу — самовывоз",
+  warranty: "Покупателю выгоднее длинная гарантия, продавцу — короткая",
+  regularity: "Покупателю выгоднее регулярные поставки, продавцу — разовая",
+};
+
+/** Типовая шкала текстовых условий: ранг 0 — лучшее для покупателя, последний — для продавца. */
+const VALUE_SCALES: Partial<Record<ParamKey, string[][]>> = {
+  payment: [["постоплата", "отсрочка"], ["50/50"], ["100% предоплата", "предоплата"]],
+  basis: [["доставка силами поставщика", "доставка поставщиком"], ["тк", "транспортная компания"], ["самовывоз"]],
+  regularity: [["еженедельно"], ["ежемесячно"], ["разовая", "разовый"]],
+};
+
+function scaleRank(key: ParamKey, value: string): { rank: number; scale: string[][] } | null {
+  const scale = VALUE_SCALES[key];
+  if (!scale) return null;
+  const v = value.toLowerCase();
+  for (let rank = 0; rank < scale.length; rank++)
+    if (scale[rank]?.some((alias) => v.includes(alias))) return { rank, scale };
+  return null;
+}
+
+/** Срок гарантии в месяцах: «12 мес», «1 год», «90 дней». Больше — выгоднее покупателю. */
+function warrantyMonths(value: string): number | null {
+  const m = value.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(лет|года|год|г\.?|мес\.?|дней|дн\.?)/);
+  if (!m) return null;
+  const n = Number((m[1] ?? "").replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  const u = m[2] ?? "";
+  if (u.startsWith("л") || u.startsWith("г")) return n * 12;
+  if (u.startsWith("м")) return n;
+  return n / 30;
+}
+
 /* ---------------- подбор соответствий ---------------- */
 
 function overlap(a: Param, b: Param, key: ParamKey): number | null {
@@ -112,8 +153,10 @@ function fmt(key: ParamKey, v: number, unit = "") {
 }
 
 /**
- * Для покупателя «хорошо» — меньше цена и срок, для продавца — больше цена и срок.
- * Количество: покупатель хочет больше, продавец — по своему диапазону (берём пересечение).
+ * Выгода по диапазонам: цена и срок — покупателю лучше меньше, продавцу больше;
+ * количество — покупателю лучше больше, продавцу меньше.
+ * Приоритет — сопротивление уступке: чем он выше, тем ближе итог к выгодному краю стороны.
+ * Условие в пределах диапазона стороны её бот принимает автоматически, независимо от приоритета.
  */
 function bargainRange(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term | null {
   const [b1, b2, s1, s2] = [num(b.min), num(b.max), num(s.min), num(s.max)];
@@ -144,35 +187,36 @@ function bargainRange(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
   const bw = Math.max(b.priority, 1), sw = Math.max(s.priority, 1);
   const buyerShare = bw / (bw + sw);
 
-  if (key === "qty") {
-    if (hi >= lo) {
-      const v = round(hi, key); // максимально возможный общий объём
-      log.push({ side: "system", text: `Количество: диапазоны пересекаются, фиксируем ${fmt(key, v, unit)}.` });
-      return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "В пределах обоих диапазонов" };
-    }
-    const v = round(bHi < sLo ? sLo : sHi, key);
-    const buyerOk = v >= bLo && v <= bHi;
-    const sellerOk = v >= sLo && v <= sHi;
-    log.push({ side: "system", text: `Количество не пересекается — предлагаем ${fmt(key, v, unit)}.` });
-    return { key, value: fmt(key, v, unit), buyerOk, sellerOk, note: "Объёмы не совпадают — нужна уступка" };
-  }
-
   if (hi >= lo) {
-    // в зоне пересечения: lowerIsBuyerWin → покупателю лучше lo
+    // в зоне пересечения: buyerShare=1 → выгодный край покупателя (цена/срок: lo, количество: hi)
     const v = round(lowerIsBuyerWin ? hi - (hi - lo) * buyerShare : lo + (hi - lo) * buyerShare, key);
-    log.push({ side: "system", text: `${LABELS[key]}: есть общая зона, с учётом приоритетов (${b.priority}% / ${s.priority}%) — ${fmt(key, v, unit)}.` });
-    return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "Внутри общей зоны" };
+    log.push({ side: "system", text: `${LABELS[key]}: есть общая зона, с учётом приоритетов (${b.priority}% / ${s.priority}%) — ${fmt(key, v, unit)}. Условие в пределах обеих сторон — боты принимают автоматически.` });
+    return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "Внутри общей зоны — принято ботами" };
   }
-  // зоны не пересекаются: компромисс между краями, сдвинутый к стороне с большим приоритетом
-  const bEdge = lowerIsBuyerWin ? bHi : bLo; // максимум уступки покупателя
-  const sEdge = lowerIsBuyerWin ? sLo : sHi; // максимум уступки продавца
+  // зоны не пересекаются: компромисс между ближайшими краями, сдвинутый к стороне с большим приоритетом
+  const bEdge = bHi < sLo ? bHi : bLo; // край покупателя, ближайший к продавцу
+  const sEdge = bHi < sLo ? sLo : sHi; // край продавца, ближайший к покупателю
   const v = round(sEdge + (bEdge - sEdge) * buyerShare, key);
+  // авто-принятие: если компромисс попал в диапазон стороны, её бот согласен даже при высоком приоритете
+  const buyerOk = v >= bLo && v <= bHi;
+  const sellerOk = v >= sLo && v <= sHi;
   log.push({ side: "buyer", text: `${LABELS[key]}: моя предельная граница — ${fmt(key, bEdge, unit)}.` });
   log.push({ side: "seller", text: `${LABELS[key]}: моя предельная граница — ${fmt(key, sEdge, unit)}.` });
-  log.push({ side: "system", text: `${LABELS[key]}: зоны не пересекаются, компромисс — ${fmt(key, v, unit)}.` });
-  return { key, value: fmt(key, v, unit), buyerOk: false, sellerOk: false, note: "Компромисс за пределами обоих — нужно согласие" };
+  log.push({ side: "system", text: `${LABELS[key]}: зоны не пересекаются, компромисс — ${fmt(key, v, unit)}.${buyerOk ? " В пределах покупателя — его бот принимает." : ""}${sellerOk ? " В пределах продавца — его бот принимает." : ""}` });
+  const note = buyerOk && sellerOk
+    ? "Принято ботами"
+    : buyerOk || sellerOk
+      ? `В пределах ${buyerOk ? "покупателя" : "продавца"} — нужна уступка второй стороны`
+      : "Компромисс за пределами обоих — нужно согласие";
+  return { key, value: fmt(key, v, unit), buyerOk, sellerOk, note };
 }
 
+/**
+ * Текстовые условия сравниваются по типовой шкале выгоды (оплата, базис, регулярность)
+ * или по сроку (гарантия). Если предложение второй стороны выгоднее собственного,
+ * бот принимает его независимо от приоритета. Иначе итог — точка шкалы между позициями:
+ * чем выше приоритет стороны, тем ближе итог к её условию.
+ */
 function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term | null {
   const bv = b.ignore ? "" : b.value.trim();
   const sv = s.ignore ? "" : s.value.trim();
@@ -184,6 +228,47 @@ function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
   }
   log.push({ side: "buyer", text: `${LABELS[key]}: прошу «${bv}» (важность ${b.priority}%).` });
   log.push({ side: "seller", text: `${LABELS[key]}: предлагаю «${sv}» (важность ${s.priority}%).` });
+
+  // доля «в пользу покупателя»: выше приоритет — сильнее удерживает своё условие
+  const bw = Math.max(b.priority, 1), sw = Math.max(s.priority, 1);
+  const buyerShare = bw / (bw + sw);
+
+  const rb = key === "warranty" ? null : scaleRank(key, bv);
+  const rs = key === "warranty" ? null : scaleRank(key, sv);
+  if (rb && rs) {
+    const lo = Math.min(rb.rank, rs.rank), hi = Math.max(rb.rank, rs.rank);
+    // покупателю лучше меньший ранг: его доля удерживает нижний край шкалы
+    const rank = Math.round(lo + (hi - lo) * (1 - buyerShare));
+    const value = rank === rb.rank ? bv : rank === rs.rank ? sv : (rb.scale[rank]?.[0] ?? bv);
+    const swap = rb.rank > rs.rank; // предложение каждой стороны выгоднее другой, чем её собственное
+    log.push({
+      side: "system",
+      text: swap
+        ? `${LABELS[key]}: предложение каждой стороны выгоднее другой, чем её собственное, — принимаем взаимовыгодное «${value}».`
+        : `${LABELS[key]}: условия тянут в разные стороны, с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
+    });
+    return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Взаимовыгодно: каждый получает лучше своего" : "Компромисс по приоритетам" };
+  }
+
+  if (key === "warranty") {
+    const mb = warrantyMonths(bv), ms = warrantyMonths(sv);
+    if (mb !== null && ms !== null) {
+      const lo = Math.min(mb, ms), hi = Math.max(mb, ms);
+      // покупателю лучше длиннее: его доля удерживает верхний край
+      const m = Math.round(lo + (hi - lo) * buyerShare);
+      const value = m === mb ? bv : m === ms ? sv : `${m} мес.`;
+      const swap = ms > mb; // продавец предлагает дольше, чем просит покупатель
+      log.push({
+        side: "system",
+        text: swap
+          ? `${LABELS[key]}: предложение продавца выгоднее запроса покупателя — покупатель принимает «${value}».`
+          : `${LABELS[key]}: с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
+      });
+      return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Условие выгоднее собственного — принято" : "Компромисс по приоритетам" };
+    }
+  }
+
+  // условия не сравнить по выгоде: уступает сторона с меньшим приоритетом
   if (b.priority > s.priority) {
     log.push({ side: "seller", text: `${LABELS[key]}: для меня это менее важно — соглашаюсь на «${bv}».` });
     return { key, value: bv, buyerOk: true, sellerOk: true, note: "Продавец уступил (ниже приоритет)" };
