@@ -72,7 +72,7 @@ function scaleRank(key: ParamKey, value: string): { rank: number; scale: string[
   if (!scale) return null;
   const v = value.toLowerCase();
   for (let rank = 0; rank < scale.length; rank++)
-    if (scale[rank].some((alias) => v.includes(alias))) return { rank, scale };
+    if (scale[rank]?.some((alias) => v.includes(alias))) return { rank, scale };
   return null;
 }
 
@@ -80,9 +80,9 @@ function scaleRank(key: ParamKey, value: string): { rank: number; scale: string[
 function warrantyMonths(value: string): number | null {
   const m = value.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(лет|года|год|г\.?|мес\.?|дней|дн\.?)/);
   if (!m) return null;
-  const n = Number(m[1].replace(",", "."));
+  const n = Number((m[1] ?? "").replace(",", "."));
   if (!Number.isFinite(n)) return null;
-  const u = m[2];
+  const u = m[2] ?? "";
   if (u.startsWith("л") || u.startsWith("г")) return n * 12;
   if (u.startsWith("м")) return n;
   return n / 30;
@@ -239,7 +239,7 @@ function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
     const lo = Math.min(rb.rank, rs.rank), hi = Math.max(rb.rank, rs.rank);
     // покупателю лучше меньший ранг: его доля удерживает нижний край шкалы
     const rank = Math.round(lo + (hi - lo) * (1 - buyerShare));
-    const value = rank === rb.rank ? bv : rank === rs.rank ? sv : rb.scale[rank][0];
+    const value = rank === rb.rank ? bv : rank === rs.rank ? sv : (rb.scale[rank]?.[0] ?? bv);
     const swap = rb.rank > rs.rank; // предложение каждой стороны выгоднее другой, чем её собственное
     log.push({
       side: "system",
