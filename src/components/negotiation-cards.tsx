@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { LABELS, type ParamKey, type TradeRequest } from "@/lib/bargain";
+import { BENEFIT, LABELS, type ParamKey, type TradeRequest } from "@/lib/bargain";
 import { describeDeal } from "@/lib/ai.functions";
 import { changeNegotiation, openNegotiation } from "@/lib/negotiations.functions";
 import { humansAgreed, proposeCondition, type ConditionValues, type NegotiationSnapshot } from "@/lib/negotiation";
@@ -91,6 +91,7 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
           <h3 className="font-semibold text-ink">{LABELS[c.key]}</h3>
           <span className="text-xs text-dim">Приоритет: покупатель {snapshot.buyer[c.key].priority}% · продавец {snapshot.seller[c.key].priority}%</span>
         </div>
+        <p className="mt-1 text-xs text-dim">{BENEFIT[c.key]}</p>
         <div className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
           <div><div className="text-dim">Покупатель{side === "buyer" ? " · вы" : ""}</div><div className="mt-1 break-words text-ink">{parameterText(snapshot.buyer[c.key], range)}</div></div>
           <div><div className="text-dim">Продавец{side === "seller" ? " · вы" : ""}</div><div className="mt-1 break-words text-ink">{parameterText(snapshot.seller[c.key], range)}</div></div>
