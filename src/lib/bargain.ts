@@ -153,8 +153,10 @@ function fmt(key: ParamKey, v: number, unit = "") {
 }
 
 /**
- * Для покупателя «хорошо» — меньше цена и срок, для продавца — больше цена и срок.
- * Количество: покупатель хочет больше, продавец — по своему диапазону (берём пересечение).
+ * Выгода по диапазонам: цена и срок — покупателю лучше меньше, продавцу больше;
+ * количество — покупателю лучше больше, продавцу меньше.
+ * Приоритет — сопротивление уступке: чем он выше, тем ближе итог к выгодному краю стороны.
+ * Условие в пределах диапазона стороны её бот принимает автоматически, независимо от приоритета.
  */
 function bargainRange(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term | null {
   const [b1, b2, s1, s2] = [num(b.min), num(b.max), num(s.min), num(s.max)];
@@ -185,33 +187,28 @@ function bargainRange(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
   const bw = Math.max(b.priority, 1), sw = Math.max(s.priority, 1);
   const buyerShare = bw / (bw + sw);
 
-  if (key === "qty") {
-    if (hi >= lo) {
-      const v = round(hi, key); // максимально возможный общий объём
-      log.push({ side: "system", text: `Количество: диапазоны пересекаются, фиксируем ${fmt(key, v, unit)}.` });
-      return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "В пределах обоих диапазонов" };
-    }
-    const v = round(bHi < sLo ? sLo : sHi, key);
-    const buyerOk = v >= bLo && v <= bHi;
-    const sellerOk = v >= sLo && v <= sHi;
-    log.push({ side: "system", text: `Количество не пересекается — предлагаем ${fmt(key, v, unit)}.` });
-    return { key, value: fmt(key, v, unit), buyerOk, sellerOk, note: "Объёмы не совпадают — нужна уступка" };
-  }
-
   if (hi >= lo) {
-    // в зоне пересечения: lowerIsBuyerWin → покупателю лучше lo
+    // в зоне пересечения: buyerShare=1 → выгодный край покупателя (цена/срок: lo, количество: hi)
     const v = round(lowerIsBuyerWin ? hi - (hi - lo) * buyerShare : lo + (hi - lo) * buyerShare, key);
-    log.push({ side: "system", text: `${LABELS[key]}: есть общая зона, с учётом приоритетов (${b.priority}% / ${s.priority}%) — ${fmt(key, v, unit)}.` });
-    return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "Внутри общей зоны" };
+    log.push({ side: "system", text: `${LABELS[key]}: есть общая зона, с учётом приоритетов (${b.priority}% / ${s.priority}%) — ${fmt(key, v, unit)}. Условие в пределах обеих сторон — боты принимают автоматически.` });
+    return { key, value: fmt(key, v, unit), buyerOk: true, sellerOk: true, note: "Внутри общей зоны — принято ботами" };
   }
-  // зоны не пересекаются: компромисс между краями, сдвинутый к стороне с большим приоритетом
-  const bEdge = lowerIsBuyerWin ? bHi : bLo; // максимум уступки покупателя
-  const sEdge = lowerIsBuyerWin ? sLo : sHi; // максимум уступки продавца
+  // зоны не пересекаются: компромисс между ближайшими краями, сдвинутый к стороне с большим приоритетом
+  const bEdge = bHi < sLo ? bHi : bLo; // край покупателя, ближайший к продавцу
+  const sEdge = bHi < sLo ? sLo : sHi; // край продавца, ближайший к покупателю
   const v = round(sEdge + (bEdge - sEdge) * buyerShare, key);
+  // авто-принятие: если компромисс попал в диапазон стороны, её бот согласен даже при высоком приоритете
+  const buyerOk = v >= bLo && v <= bHi;
+  const sellerOk = v >= sLo && v <= sHi;
   log.push({ side: "buyer", text: `${LABELS[key]}: моя предельная граница — ${fmt(key, bEdge, unit)}.` });
   log.push({ side: "seller", text: `${LABELS[key]}: моя предельная граница — ${fmt(key, sEdge, unit)}.` });
-  log.push({ side: "system", text: `${LABELS[key]}: зоны не пересекаются, компромисс — ${fmt(key, v, unit)}.` });
-  return { key, value: fmt(key, v, unit), buyerOk: false, sellerOk: false, note: "Компромисс за пределами обоих — нужно согласие" };
+  log.push({ side: "system", text: `${LABELS[key]}: зоны не пересекаются, компромисс — ${fmt(key, v, unit)}.${buyerOk ? " В пределах покупателя — его бот принимает." : ""}${sellerOk ? " В пределах продавца — его бот принимает." : ""}` });
+  const note = buyerOk && sellerOk
+    ? "Принято ботами"
+    : buyerOk || sellerOk
+      ? `В пределах ${buyerOk ? "покупателя" : "продавца"} — нужна уступка второй стороны`
+      : "Компромисс за пределами обоих — нужно согласие";
+  return { key, value: fmt(key, v, unit), buyerOk, sellerOk, note };
 }
 
 function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term | null {
