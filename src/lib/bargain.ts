@@ -211,6 +211,12 @@ function bargainRange(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
   return { key, value: fmt(key, v, unit), buyerOk, sellerOk, note };
 }
 
+/**
+ * Текстовые условия сравниваются по типовой шкале выгоды (оплата, базис, регулярность)
+ * или по сроку (гарантия). Если предложение второй стороны выгоднее собственного,
+ * бот принимает его независимо от приоритета. Иначе итог — точка шкалы между позициями:
+ * чем выше приоритет стороны, тем ближе итог к её условию.
+ */
 function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term | null {
   const bv = b.ignore ? "" : b.value.trim();
   const sv = s.ignore ? "" : s.value.trim();
@@ -222,6 +228,47 @@ function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
   }
   log.push({ side: "buyer", text: `${LABELS[key]}: прошу «${bv}» (важность ${b.priority}%).` });
   log.push({ side: "seller", text: `${LABELS[key]}: предлагаю «${sv}» (важность ${s.priority}%).` });
+
+  // доля «в пользу покупателя»: выше приоритет — сильнее удерживает своё условие
+  const bw = Math.max(b.priority, 1), sw = Math.max(s.priority, 1);
+  const buyerShare = bw / (bw + sw);
+
+  const rb = key === "warranty" ? null : scaleRank(key, bv);
+  const rs = key === "warranty" ? null : scaleRank(key, sv);
+  if (rb && rs) {
+    const lo = Math.min(rb.rank, rs.rank), hi = Math.max(rb.rank, rs.rank);
+    // покупателю лучше меньший ранг: его доля удерживает нижний край шкалы
+    const rank = Math.round(lo + (hi - lo) * (1 - buyerShare));
+    const value = rank === rb.rank ? bv : rank === rs.rank ? sv : rb.scale[rank][0];
+    const swap = rb.rank > rs.rank; // предложение каждой стороны выгоднее другой, чем её собственное
+    log.push({
+      side: "system",
+      text: swap
+        ? `${LABELS[key]}: предложение каждой стороны выгоднее другой, чем её собственное, — принимаем взаимовыгодное «${value}».`
+        : `${LABELS[key]}: условия тянут в разные стороны, с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
+    });
+    return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Взаимовыгодно: каждый получает лучше своего" : "Компромисс по приоритетам" };
+  }
+
+  if (key === "warranty") {
+    const mb = warrantyMonths(bv), ms = warrantyMonths(sv);
+    if (mb !== null && ms !== null) {
+      const lo = Math.min(mb, ms), hi = Math.max(mb, ms);
+      // покупателю лучше длиннее: его доля удерживает верхний край
+      const m = Math.round(lo + (hi - lo) * buyerShare);
+      const value = m === mb ? bv : m === ms ? sv : `${m} мес.`;
+      const swap = ms > mb; // продавец предлагает дольше, чем просит покупатель
+      log.push({
+        side: "system",
+        text: swap
+          ? `${LABELS[key]}: предложение продавца выгоднее запроса покупателя — покупатель принимает «${value}».`
+          : `${LABELS[key]}: с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
+      });
+      return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Условие выгоднее собственного — принято" : "Компромисс по приоритетам" };
+    }
+  }
+
+  // условия не сравнить по выгоде: уступает сторона с меньшим приоритетом
   if (b.priority > s.priority) {
     log.push({ side: "seller", text: `${LABELS[key]}: для меня это менее важно — соглашаюсь на «${bv}».` });
     return { key, value: bv, buyerOk: true, sellerOk: true, note: "Продавец уступил (ниже приоритет)" };
