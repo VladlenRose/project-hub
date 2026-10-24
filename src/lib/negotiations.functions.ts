@@ -2,11 +2,23 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withDefaults } from "./bargain";
-import { acceptCondition, conditionValuesSchema, initialNegotiation, paramKeySchema, proposeCondition, type NegotiationSnapshot } from "./negotiation";
+import { acceptCondition, conditionValuesSchema, humansAgreed, initialNegotiation, paramKeySchema, proposeCondition, type NegotiationSnapshot } from "./negotiation";
 import type { Json } from "@/integrations/supabase/types";
 import { canBargain, requestSimilarity } from "./request-similarity";
 
 const pairSchema = z.object({ buyerId: z.string().uuid(), sellerId: z.string().uuid() });
+export const createContract = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid(), version: z.number().int().positive() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase.from("request_negotiations").select("*").eq("id", data.id).single();
+    if (error || !row || ![row.buyer_id, row.seller_id].includes(context.userId)) throw new Error("Нет доступа к переговорам.");
+    if (!humansAgreed(row.snapshot as unknown as NegotiationSnapshot)) throw new Error("Нужны подтверждения обоих участников по всем пунктам.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: id, error: writeError } = await supabaseAdmin.rpc("create_negotiation_contract", { _id: row.id, _expected: data.version, _actor: context.userId });
+    if (writeError || !id) throw new Error("Условия изменились. Проверьте подтверждения.");
+    return { id };
+  });
 export const openNegotiation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => pairSchema.parse(input))
