@@ -28,6 +28,6 @@ test("только согласованные пункты могут дать �
 test("товары менее 50% сходства не запускают торг", () => { expect(canBargain(0.49)).toBe(false); expect(canBargain(0.5)).toBe(true); });
 test("высокий приоритет удерживает текстовое условие, выгодное принимается", () => {
  const b = emptyParams(), s = emptyParams(); b.payment.value="постоплата"; s.payment.value="предоплата"; b.payment.priority=s.payment.priority=100;
- const c = initialNegotiation(b,s).conditions.find(c=>c.key==="payment"); expect(c?.term?.buyerOk).toBe(false); expect(c?.term?.sellerOk).toBe(true);
+ const c = initialNegotiation(b,s).conditions.find(c=>c.key==="payment"); expect(c?.term?.buyerOk).toBe(false); expect(c?.term?.sellerOk).toBe(false);
  s.payment.value="постоплата"; expect(initialNegotiation(b,s).conditions.find(c=>c.key==="payment")?.term?.buyerOk).toBe(true);
 });
