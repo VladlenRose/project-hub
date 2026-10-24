@@ -20,6 +20,8 @@ export type Database = {
           counterparty: string | null
           created_at: string
           id: string
+          negotiation_id: string | null
+          negotiation_version: number | null
           owner_id: string
           status: string
           thread_id: string | null
@@ -30,6 +32,8 @@ export type Database = {
           counterparty?: string | null
           created_at?: string
           id?: string
+          negotiation_id?: string | null
+          negotiation_version?: number | null
           owner_id: string
           status?: string
           thread_id?: string | null
@@ -40,12 +44,22 @@ export type Database = {
           counterparty?: string | null
           created_at?: string
           id?: string
+          negotiation_id?: string | null
+          negotiation_version?: number | null
           owner_id?: string
           status?: string
           thread_id?: string | null
           title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "documents_negotiation_id_fkey"
+            columns: ["negotiation_id"]
+            isOneToOne: false
+            referencedRelation: "request_negotiations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -452,6 +466,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_negotiation_contract: {
+        Args: { _actor: string; _expected: number; _id: string }
+        Returns: string
       }
       create_product_from_request: {
         Args: {
