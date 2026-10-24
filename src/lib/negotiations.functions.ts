@@ -4,17 +4,28 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withDefaults } from "./bargain";
 import { acceptCondition, conditionValuesSchema, initialNegotiation, paramKeySchema, proposeCondition, type NegotiationSnapshot } from "./negotiation";
 import type { Json } from "@/integrations/supabase/types";
+import { canBargain, requestSimilarity } from "./request-similarity";
 
 const pairSchema = z.object({ buyerId: z.string().uuid(), sellerId: z.string().uuid() });
 export const openNegotiation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => pairSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("trade_requests").select("id,owner_id,kind,params").in("id", [data.buyerId, data.sellerId]);
+    const { data: rows, error } = await context.supabase.from("trade_requests").select("id,owner_id,kind,params,product_id,title,created_at").in("id", [data.buyerId, data.sellerId]);
     if (error) throw new Error("Не удалось прочитать заявки.");
     const buyer = rows?.find((r) => r.id === data.buyerId && r.kind === "buy");
     const seller = rows?.find((r) => r.id === data.sellerId && r.kind === "sell");
     if (!buyer || !seller || buyer.owner_id === seller.owner_id || ![buyer.owner_id, seller.owner_id].includes(context.userId)) throw new Error("Нет доступа к этим переговорам.");
+    const { data: existing } = await context.supabase.from("request_negotiations").select("*").eq("buyer_request_id", buyer.id).eq("seller_request_id", seller.id).maybeSingle();
+    if (existing) return existing;
+    let semantic: number | undefined;
+    if (buyer.product_id && seller.product_id) {
+      const { data: similarities } = await context.supabase.rpc("product_pair_similarity", { _ref: buyer.product_id, _ids: [seller.product_id] });
+      semantic = similarities?.[0]?.similarity;
+    }
+    const b = { ...buyer, kind: "buy" as const, params: withDefaults(buyer.params as never) };
+    const s = { ...seller, kind: "sell" as const, params: withDefaults(seller.params as never) };
+    if (!canBargain(requestSimilarity(b, s, semantic))) throw new Error("Сходство товаров ниже 50% — торг не запускается.");
     // Atomic cross-participant write; actor is verified above, never taken from client input.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error: writeError } = await supabaseAdmin.rpc("open_request_negotiation", {
