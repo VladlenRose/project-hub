@@ -9,7 +9,7 @@ function pending(key: "price" | "qty" | "term" | "warranty" | "payment", own: st
   const buyer = emptyParams(), seller = emptyParams();
   buyer[key] = { ...buyer[key], min: own, max: own, value: own };
   seller[key] = { ...seller[key], min: own, max: own, value: own };
-  return { buyer, seller, conditions: [{ key, buyerAccepted: false, sellerAccepted: false, log: [], term: { key, value, numericValue, buyerOk: false, sellerOk: false, note: "" } }] };
+  return { buyer, seller, conditions: [{ key, buyerAccepted: false, sellerAccepted: false, log: [], term: { key, value, ...(numericValue === undefined ? {} : { numericValue }), buyerOk: false, sellerOk: false, note: "" } }] };
 }
 test("цена и количество: 20% расхождения дают 0%, 10% дают 50%", () => {
   expect(TOLERANCES.price).toBe(0.2); expect(TOLERANCES.qty).toBe(0.2);
@@ -24,7 +24,7 @@ test("100% ботов не разрешают договор без подтве
   const state = initialNegotiation(b,s); expect(agreementPercent(state)).toBe(100); expect(humansAgreed(state)).toBe(false);
   const one = acceptCondition(state,"buyer","price"); expect(humansAgreed(one)).toBe(false); expect(humansAgreed(acceptCondition(one,"seller","price"))).toBe(true);
 });
-test("только согласованные пункты могут дать ровно 100%", () => { const state = pending("price", "100", "100", 100); expect(conditionPercent(state,state.conditions[0])).toBe(99); });
+test("только согласованные пункты могут дать ровно 100%", () => { const state = pending("price", "100", "100", 100); const c = state.conditions[0]; if (!c) throw new Error("Missing condition"); expect(conditionPercent(state,c)).toBe(99); });
 test("товары менее 50% сходства не запускают торг", () => { expect(canBargain(0.49)).toBe(false); expect(canBargain(0.5)).toBe(true); });
 test("высокий приоритет удерживает текстовое условие, выгодное принимается", () => {
  const b = emptyParams(), s = emptyParams(); b.payment.value="постоплата"; s.payment.value="предоплата"; b.payment.priority=s.payment.priority=100;
