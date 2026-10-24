@@ -19,6 +19,13 @@ import { analyzeRequestText } from "@/lib/requests.functions";
 import { recognizeImageText } from "@/lib/ocr.functions";
 import { ProductPicker, useProductSearch, type PickedProduct } from "@/components/product-picker";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { AgreementBadge } from "@/components/agreement-badge";
+import { agreementPercent } from "@/lib/agreement";
+import { openNegotiation } from "@/lib/negotiations.functions";
+import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { VoiceButton } from "@/components/voice-button";
 
 const TITLE = "Торговые заявки AI-Mall — купить или продать с ИИ";
@@ -77,65 +84,6 @@ type Zone = "green" | "yellow" | "red";
 type Ref = { kind: Kind; params: Params; id: string; productId: string };
 
 const n = (s: string) => (s.trim() === "" ? null : Number(s));
-
-function overlapScore(a: Param, b: Param, key: ParamKey): number | null {
-  if (a.ignore || b.ignore) return null;
-  if (RANGE[key] !== undefined) {
-    const [a1, a2, b1, b2] = [n(a.min), n(a.max), n(b.min), n(b.max)];
-    if ([a1, a2, b1, b2].some((v) => v === null || Number.isNaN(v))) return null;
-    const lo = Math.max(a1!, b1!);
-    const hi = Math.min(a2!, b2!);
-    if (hi >= lo) return 1;
-    const span = Math.max(a2! - a1!, b2! - b1!, 1);
-    return Math.max(0, 1 - (lo - hi) / span);
-  }
-  if (!a.value.trim() || !b.value.trim()) return null;
-  return a.value.trim().toLowerCase() === b.value.trim().toLowerCase() ? 1 : 0;
-}
-
-const mid = (p: Param) => {
-  const a = n(p.min), b = n(p.max);
-  if (a === null && b === null) return null;
-  return ((a ?? b!) + (b ?? a!)) / 2;
-};
-
-/** Близость товаров по эмбеддингам → множитель скора. Без карточки — слабое совпадение. */
-function titleFactor(sim: number | undefined): number {
-  if (sim === undefined) return 0.3;
-  if (sim >= 0.999) return 1;
-  if (sim >= 0.85) return 0.9;
-  if (sim >= 0.72) return 0.5;
-  return 0;
-}
-
-function matchScore(mine: Params, other: Params, myKind: Kind, titleSim: number) {
-  if (titleSim === 0) return 0;
-
-  let wsum = 0;
-  let total = 0;
-  for (const k of KEYS) {
-    const s = overlapScore(mine[k], other[k], k);
-    if (s === null) continue;
-    const w = Math.max(mine[k].priority, 1);
-    wsum += w;
-    total += w * s;
-  }
-  let score = wsum === 0 ? 0.5 : total / wsum;
-  const m1 = mid(mine.price), m2 = mid(other.price);
-  if (!mine.price.ignore && !other.price.ignore && m1 && m2 && m1 > 0 && m2 > 0) {
-    const ratio = m2 / m1;
-    const weight = 0.5 + mine.price.priority / 100;
-    const coef = Math.pow(ratio, weight);
-    score = myKind === "sell" ? score * coef : score / coef;
-  }
-  score = score * titleSim;
-  return Math.max(0, Math.min(1, score));
-}
-
-
-const zoneOf = (s: number): Zone => (s >= 0.75 ? "green" : s >= 0.4 ? "yellow" : "red");
-const ZONE_DOT: Record<Zone, string> = { green: "bg-emerald-500", yellow: "bg-amber-400", red: "bg-destructive" };
-const ZONE_LABEL: Record<Zone, string> = { green: "Подходит", yellow: "Частично", red: "Слабо" };
 
 function fmtParam(k: ParamKey, p?: Param) {
   if (!p) return "—";
@@ -198,6 +146,35 @@ function RequestsPage() {
     });
   }, [ref, all]);
 
+  const runBargain = useServerFn(openNegotiation);
+  const similarityFor = (r: Stored) => {
+    const my = all.find(item => item.id === ref?.id);
+    return my ? requestSimilarity(my, r, r.product_id ? sims[r.product_id] : undefined) : 0;
+  };
+  const results = useQuery({
+    queryKey: ["registry-negotiations", ref?.id], enabled: !!ref,
+    queryFn: async () => {
+      if (!ref) return [];
+      const { data, error } = await supabase.from("request_negotiations").select("buyer_request_id,seller_request_id,snapshot").or(`buyer_request_id.eq.${ref.id},seller_request_id.eq.${ref.id}`);
+      if (error) throw error;
+      return data ?? [];
+    }, refetchInterval: 10000,
+  });
+  useEffect(() => {
+    if (!ref) return;
+    let cancelled = false;
+    const run = async () => {
+      for (const r of all.filter(r => r.owner_id !== user?.id && r.kind !== ref.kind && canBargain(similarityFor(r)))) {
+        if (cancelled) return;
+        try { await runBargain({ data: { buyerId: ref.kind === "buy" ? ref.id : r.id, sellerId: ref.kind === "sell" ? ref.id : r.id } }); }
+        catch { toast.error("Не удалось провести торг по одной из заявок."); }
+      }
+      if (!cancelled) await results.refetch();
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [ref, all, sims]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = all
@@ -205,14 +182,10 @@ function RequestsPage() {
       .filter((r) => !q || r.title.toLowerCase().includes(q) || (r.extra ?? "").toLowerCase().includes(q))
       // При активном подборе пар свои заявки из соответствий исключаем
       .filter((r) => !ref || r.owner_id !== user?.id)
-      .map((r) => {
-        const counter = ref && r.kind !== ref.kind && r.id !== ref.id;
-        const score = counter ? matchScore(ref.params, { ...emptyParams(), ...r.params }, ref.kind, titleFactor(r.product_id ? sims[r.product_id] : undefined)) : null;
-        return { r, score };
-      });
-    if (ref) list.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+      .filter((r) => !ref || (r.kind !== ref.kind && canBargain(similarityFor(r))))
+      .map((r) => ({ r, score: results.data?.find(n => n.buyer_request_id === (ref?.kind === "buy" ? ref.id : r.id) && n.seller_request_id === (ref?.kind === "sell" ? ref.id : r.id))?.snapshot }));
     return list;
-  }, [all, filter, query, ref, sims, user?.id]);
+  }, [all, filter, query, ref, sims, user?.id, results.data]);
 
   function pickFrom(r: Stored): PickedProduct | null {
     return r.product_id ? { id: r.product_id, title: r.title, category: null, unit: null } : null;
@@ -624,8 +597,8 @@ function RequestsPage() {
           <section className="space-y-4">
             {ref && (
               <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-dim">
-                Ваша заявка сохранена. Встречные заявки отсортированы по светофору — от более подходящих к менее.
-                <Button variant="link" size="sm" onClick={() => setRef(null)}>Сбросить подбор</Button>
+                Ваша заявка сохранена. Результаты торга по встречным заявкам:
+                <Button variant="link" size="sm" onClick={() => setRef(null)}>Сбросить подбор</Button><Link to="/chat" className="text-brand underline">Переговоры</Link>
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
@@ -648,7 +621,7 @@ function RequestsPage() {
                 {rows.map(({ r, score }) => (
                   <button key={r.id} type="button" onClick={() => setOpen(r)}
                     className="glass-panel flex w-full items-center gap-4 rounded-xl p-4 text-left transition-shadow hover:shadow-lg">
-                    {score !== null && <span className={cn("size-3 shrink-0 rounded-full", ZONE_DOT[zoneOf(score)])} />}
+                    
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs text-dim">{r.kind === "buy" ? "Покупка" : "Продажа"}</span>
@@ -660,12 +633,7 @@ function RequestsPage() {
                         Цена: {fmtParam("price", r.params?.price)} · Кол-во: {fmtParam("qty", r.params?.qty)}
                       </div>
                     </div>
-                    {score !== null && (
-                      <div className="text-right">
-                        <div className="font-mono text-sm text-ink">{Math.round(score * 100)}%</div>
-                        <div className="text-xs text-dim">{ZONE_LABEL[zoneOf(score)]}</div>
-                      </div>
-                    )}
+                    {ref && (score ? <AgreementBadge percent={agreementPercent(score as unknown as NegotiationSnapshot)} /> : <span className="text-xs text-dim">Торг…</span>)}
                   </button>
                 ))}
               </div>

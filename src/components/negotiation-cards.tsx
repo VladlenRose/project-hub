@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
+import { AgreementBadge } from "./agreement-badge";
+import { agreementPercent, conditionPercent } from "@/lib/agreement";
 import { Bot, Check, ChevronDown, History, Loader2, Pencil, RefreshCw, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/integrations/supabase/client";
 import { BENEFIT, LABELS, type ParamKey, type TradeRequest } from "@/lib/bargain";
 import { describeDeal } from "@/lib/ai.functions";
-import { changeNegotiation, openNegotiation } from "@/lib/negotiations.functions";
+import { changeNegotiation, createContract, openNegotiation } from "@/lib/negotiations.functions";
 import { humansAgreed, proposeCondition, type ConditionValues, type NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,8 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
   const side = my.kind === "buy" ? "buyer" : "seller";
   const open = useServerFn(openNegotiation), change = useServerFn(changeNegotiation), explain = useServerFn(describeDeal);
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const contract = useServerFn(createContract);
   const queryKey = ["request-negotiation", buyer.id, seller.id];
   const [edit, setEdit] = useState<Edit | null>(null);
   const [confirmation, setConfirmation] = useState<{ key: ParamKey; version: number; action: "accept" | "propose" } | null>(null);
@@ -57,6 +62,11 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
     },
     onError: () => toast.error("ИИ сейчас недоступен; условия сохранены."),
   });
+  const draft = useMutation({
+    mutationFn: () => { if (!row) throw new Error("Переговоры недоступны."); return contract({ data: { id: row.id, version: row.version } }); },
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["documents"] }); await navigate({ to: "/documents" }); },
+    onError: (error) => toast.error(error.message),
+  });
 
   if (query.isPending) return <div className="flex items-center justify-center gap-2 p-10 text-sm text-dim"><Loader2 className="size-4 animate-spin" />Открываем переговоры…</div>;
   if (query.isError || !row || !snapshot) return <div className="space-y-3 p-6 text-sm text-destructive"><p>Не удалось открыть переговоры. Проверьте вход и попробуйте снова.</p><Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="size-4" />Повторить</Button></div>;
@@ -76,6 +86,7 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
   const lastVersion = row.version;
 
   return <div className="flex-1 space-y-4 p-4 sm:p-6">
+    <div className="flex flex-wrap items-center gap-3 border-b border-border pb-4"><AgreementBadge percent={agreementPercent(snapshot)} /><span className="text-sm text-dim">Согласование условий после торга</span>{humansAgreed(snapshot) && <Button disabled={draft.isPending} onClick={() => draft.mutate()}>{draft.isPending && <Loader2 className="size-4 animate-spin" />}СОСТАВИТЬ ДОГОВОР</Button>}</div>
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4 text-xs text-dim">
       <span>{humansAgreed(snapshot) ? "Оба участника подтвердили все условия" : "Ожидает подтверждений участников"} · Версия {row.version}</span>
       <Button variant="ghost" size="sm" aria-label="Обновить переговоры" onClick={() => void query.refetch()}><RefreshCw className={cn("size-4", query.isFetching && "animate-spin")} /></Button>
@@ -89,6 +100,7 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
       return <article key={c.key} className="min-w-0 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className="font-semibold text-ink">{LABELS[c.key]}</h3>
+          {shown.term && <AgreementBadge percent={conditionPercent(current?.preview ?? snapshot, shown) ?? 0} />}
           <span className="text-xs text-dim">Приоритет: покупатель {snapshot.buyer[c.key].priority}% · продавец {snapshot.seller[c.key].priority}%</span>
         </div>
         <p className="mt-1 text-xs text-dim">{BENEFIT[c.key]}</p>
@@ -100,6 +112,7 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
           <div className="text-xs text-dim">{current?.preview ? "Предварительный результат · не отправлен" : "Предложение ботов"}</div>
           <p className="mt-1 break-words text-base font-semibold text-ink">{shown.term?.value ?? "Не задано"}</p>
           <p className="mt-1 text-xs text-dim">{shown.term?.note ?? "Условия отсутствуют в обеих заявках"}</p>
+          {shown.term && <p className="mt-2 text-xs text-dim">Бот покупателя: {shown.term.buyerOk ? "принял" : "нужна уступка"} · Бот продавца: {shown.term.sellerOk ? "принял" : "нужна уступка"}</p>}
         </div>
         <details className="mb-3 text-xs">
           <summary className="flex cursor-pointer items-center gap-1.5 text-brand"><Bot className="size-4" />Ответ моего бота и ход торга<ChevronDown className="size-3" /></summary>

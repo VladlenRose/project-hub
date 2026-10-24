@@ -13,11 +13,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { negotiate } from "@/lib/ai.functions";
 import {
-  matchScore,
-  titleSimilarity,
+
+
   withDefaults,
   type TradeRequest,
 } from "@/lib/bargain";
+import { AgreementBadge } from "@/components/agreement-badge";
+import { agreementPercent } from "@/lib/agreement";
+import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
 
 const TITLE = "Переговоры ИИ-агентов по заявкам — AI-Mall";
@@ -63,21 +67,32 @@ function Chat() {
   const mine = all.filter((r) => r.owner_id === user?.id);
   const my = mine.find((r) => r.id === myId) ?? null;
 
+  const saved = useQuery({ queryKey: ["chat-negotiation-results", user?.id], enabled: !!user, refetchInterval: 10000, queryFn: async () => {
+    const { data, error } = await supabase.from("request_negotiations").select("buyer_request_id,seller_request_id,snapshot");
+    if (error) throw error;
+    return data ?? [];
+  } });
+  const similarities = useQuery({ queryKey: ["chat-similarities", my?.product_id, all.map(r => r.product_id)], enabled: !!my?.product_id, queryFn: async () => {
+    if (!my?.product_id) return {} as Record<string, number>;
+    const ids = all.flatMap(r => r.product_id ? [r.product_id] : []);
+    const { data, error } = await supabase.rpc("product_pair_similarity", { _ref: my.product_id, _ids: ids });
+    if (error) throw error;
+    return Object.fromEntries((data ?? []).map(r => [r.product_id, r.similarity]));
+  } });
   const matches = useMemo(() => {
     if (!my) return [];
     return all
       .filter((r) => r.kind !== my.kind && r.owner_id !== my.owner_id)
-      .map((r) => ({ r, score: matchScore(my.params, r.params, titleSimilarity(my, r)) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-  }, [all, my]);
+      .filter(r => canBargain(requestSimilarity(my, r, r.product_id ? similarities.data?.[r.product_id] : undefined)))
+      .map((r) => ({ r, result: saved.data?.find(n => n.buyer_request_id === (my.kind === "buy" ? my.id : r.id) && n.seller_request_id === (my.kind === "sell" ? my.id : r.id)) }));
+  }, [all, my, saved.data, similarities.data]);
   const other = matches.find((m) => m.r.id === otherId)?.r ?? null;
 
   return (
     <AppShell title="Чат-переговоры">
       <div className="grid gap-4 sm:grid-cols-2">
         {/* 1. мои заявки */}
-        <aside className="glass-panel h-fit overflow-hidden rounded-2xl">
+        <aside className="max-h-[28rem] overflow-y-auto border border-border rounded-lg">
           <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-dim">Мои заявки</div>
           {reqQuery.isLoading ? (
             <div className="grid place-items-center py-10"><Loader2 className="size-5 animate-spin text-brand" /></div>
@@ -104,7 +119,7 @@ function Chat() {
         </aside>
 
         {/* 2. соответствия */}
-        <aside className="glass-panel h-fit overflow-hidden rounded-2xl">
+        <aside className="max-h-[28rem] overflow-y-auto border border-border rounded-lg">
           <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-dim">
             {my ? (my.kind === "buy" ? "Подходящие продавцы" : "Подходящие покупатели") : "Соответствия"}
           </div>
@@ -113,7 +128,7 @@ function Chat() {
           ) : matches.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-dim">Встречных заявок пока нет.</p>
           ) : (
-            matches.map(({ r, score }) => (
+            matches.map(({ r, result }) => (
               <button
                 key={r.id}
                 type="button"
@@ -127,7 +142,7 @@ function Chat() {
                   <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
                   <span className="text-xs text-dim">{kindLabel(r.kind)}</span>
                 </span>
-                <span className="shrink-0 font-mono text-xs text-ink">{Math.round(score * 100)}%</span>
+                <span className="shrink-0">{result ? <AgreementBadge percent={agreementPercent(result.snapshot as unknown as NegotiationSnapshot)} /> : <span className="text-xs text-dim">Торг не начат</span>}</span>
               </button>
             ))
           )}

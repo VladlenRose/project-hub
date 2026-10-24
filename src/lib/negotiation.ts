@@ -1,8 +1,13 @@
 import { z } from "zod";
+import { agreementPercent } from "./agreement";
 import { bargainParameter, KEYS, withDefaults, type LogLine, type Param, type ParamKey, type Params, type Side, type Term } from "./bargain";
 
 export type Condition = { key: ParamKey; term: Term | null; log: LogLine[]; buyerAccepted: boolean; sellerAccepted: boolean };
-export type NegotiationSnapshot = { buyer: Params; seller: Params; conditions: Condition[] };
+export type NegotiationSnapshot = { buyer: Params; seller: Params; conditions: Condition[]; percent?: number; scoringVersion?: number };
+
+export function scored(snapshot: NegotiationSnapshot): NegotiationSnapshot {
+  return { ...snapshot, percent: agreementPercent(snapshot), scoringVersion: 1 };
+}
 
 export const paramKeySchema = z.enum(["qty", "price", "term", "payment", "basis", "warranty", "regularity"]);
 export const conditionValuesSchema = z.object({
@@ -13,7 +18,7 @@ export type ConditionValues = z.infer<typeof conditionValuesSchema>;
 export function initialNegotiation(b: Params, s: Params): NegotiationSnapshot {
   const buyer = withDefaults(b), seller = withDefaults(s);
   const order = [...KEYS].sort((a, c) => buyer[c].priority + seller[c].priority - buyer[a].priority - seller[a].priority);
-  return { buyer, seller, conditions: order.map((key) => ({ key, ...bargainParameter(key, buyer[key], seller[key]), buyerAccepted: false, sellerAccepted: false })) };
+  return scored({ buyer, seller, conditions: order.map((key) => ({ key, ...bargainParameter(key, buyer[key], seller[key]), buyerAccepted: false, sellerAccepted: false })) });
 }
 
 export function validateValues(key: ParamKey, values: ConditionValues) {
@@ -30,13 +35,13 @@ export function proposeCondition(snapshot: NegotiationSnapshot, side: Side, key:
   const param: Param = { ...snapshot[side][key], ...values };
   if (param.ignore) throw new Error("Параметр помечен как неважный. Сначала измените это в заявке.");
   const next = { ...snapshot, [side]: { ...snapshot[side], [key]: param } };
-  return { ...next, conditions: snapshot.conditions.map((c) => c.key === key ? { key, ...bargainParameter(key, next.buyer[key], next.seller[key]), buyerAccepted: false, sellerAccepted: false } : c) };
+  return scored({ ...next, conditions: snapshot.conditions.map((c) => c.key === key ? { key, ...bargainParameter(key, next.buyer[key], next.seller[key]), buyerAccepted: false, sellerAccepted: false } : c) });
 }
 
 export function acceptCondition(snapshot: NegotiationSnapshot, side: Side, key: ParamKey): NegotiationSnapshot {
   const c = snapshot.conditions.find((item) => item.key === key);
   if (!c?.term) throw new Error("Нет условия для подтверждения.");
-  return { ...snapshot, conditions: snapshot.conditions.map((item) => item.key === key ? { ...item, [side === "buyer" ? "buyerAccepted" : "sellerAccepted"]: true } : item) };
+  return scored({ ...snapshot, conditions: snapshot.conditions.map((item) => item.key === key ? { ...item, [side === "buyer" ? "buyerAccepted" : "sellerAccepted"]: true } : item) });
 }
 
 export function humansAgreed(snapshot: NegotiationSnapshot) {

@@ -13,3 +13,5 @@
 - Matching and bargaining between trade requests is deterministic code in src/lib/bargain.ts (tested with `bun test`); AI only rephrases results — keeps outcomes predictable and cheap.
 - Negotiation snapshots and immutable versions are persisted through authenticated server functions and atomic service-only database RPCs after participant authorization; browser clients are read-only on these tables to prevent forged participants, approvals, or lost concurrent updates.
 - Parameter counteroffers use src/lib/negotiation.ts, preserve priorities, and reset human approvals only on the changed parameter; preview drafts never write to the database.
+- Post-bargain scoring uses src/lib/agreement.ts and is stored in each new snapshot; proximity never authorizes crossing limits, and only unanimous human approvals authorize the atomic contract-draft RPC.
+- Product similarity eligibility is shared via src/lib/request-similarity.ts and checked again by the authenticated negotiation opener; registry and chat display persisted negotiation results rather than preliminary match scores.
