@@ -48,6 +48,8 @@
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-gold: var(--gold);
+  --color-agreement-good: var(--agreement-good);
+  --color-agreement-warn: var(--agreement-warn);
   --color-mist: var(--mist);
   --color-ink: var(--ink);
   --color-dim: var(--dim);
@@ -70,6 +72,8 @@
 }
 
 :root {
+  --agreement-good: oklch(0.52 0.15 155);
+  --agreement-warn: oklch(0.58 0.14 80);
   --radius: 0.75rem;
 
   --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -138,6 +142,8 @@
 }
 
 .dark {
+  --agreement-good: oklch(0.76 0.15 155);
+  --agreement-warn: oklch(0.8 0.14 80);
   --background: oklch(0.17 0.02 264.5);
   --foreground: oklch(0.97 0.002 286);
   --mist: oklch(0.22 0.028 264.5);
