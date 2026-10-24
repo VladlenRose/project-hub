@@ -105,13 +105,14 @@ function overlap(a: Param, b: Param, key: ParamKey): number | null {
   return a.value.trim().toLowerCase() === b.value.trim().toLowerCase() ? 1 : 0;
 }
 
-/** Сходство по названию: одна карточка товара = 1, общие слова = 0.6, иначе 0.3. */
+/** Conservative lexical fallback when semantic embeddings are unavailable. */
 export function titleSimilarity(a: TradeRequest, b: TradeRequest) {
   if (a.product_id && a.product_id === b.product_id) return 1;
-  const words = (s: string) => new Set(s.toLowerCase().split(/[^a-zа-яё0-9]+/i).filter((w) => w.length > 3));
+  const words = (s: string) => new Set(s.toLowerCase().replace(/·\s*сценарий\s*\d+/g, "").split(/[^a-zа-яё0-9]+/i).filter((w) => w.length > 3 && !["тест", "услуга", "товар", "продажа", "покупка"].includes(w)));
   const wa = words(a.title);
-  for (const w of words(b.title)) if (wa.has(w)) return 0.6;
-  return 0.3;
+  const wb = words(b.title);
+  const common = [...wb].filter(w => wa.has(w)).length;
+  return common / Math.max(wa.size, wb.size, 1);
 }
 
 /** Скор 0..1: каждое поле весит по МОЕМУ приоритету. */

@@ -92,7 +92,7 @@ function Chat() {
     <AppShell title="Чат-переговоры">
       <div className="grid gap-4 sm:grid-cols-2">
         {/* 1. мои заявки */}
-        <aside className="glass-panel h-fit overflow-hidden rounded-2xl">
+        <aside className="max-h-[28rem] overflow-y-auto border border-border rounded-lg">
           <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-dim">Мои заявки</div>
           {reqQuery.isLoading ? (
             <div className="grid place-items-center py-10"><Loader2 className="size-5 animate-spin text-brand" /></div>
@@ -119,7 +119,7 @@ function Chat() {
         </aside>
 
         {/* 2. соответствия */}
-        <aside className="glass-panel h-fit overflow-hidden rounded-2xl">
+        <aside className="max-h-[28rem] overflow-y-auto border border-border rounded-lg">
           <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-dim">
             {my ? (my.kind === "buy" ? "Подходящие продавцы" : "Подходящие покупатели") : "Соответствия"}
           </div>
