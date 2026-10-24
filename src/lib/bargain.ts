@@ -248,7 +248,9 @@ function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
         ? `${LABELS[key]}: предложение каждой стороны выгоднее другой, чем её собственное, — принимаем взаимовыгодное «${value}».`
         : `${LABELS[key]}: условия тянут в разные стороны, с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
     });
-    return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Взаимовыгодно: каждый получает лучше своего" : "Компромисс по приоритетам" };
+    const buyerOk = rank <= rb.rank || rank - rb.rank <= (hi - lo) * (1 - b.priority / 100);
+    const sellerOk = rank >= rs.rank || rs.rank - rank <= (hi - lo) * (1 - s.priority / 100);
+    return { key, value, buyerOk, sellerOk, note: swap ? "Взаимовыгодно: каждый получает лучше своего" : buyerOk && sellerOk ? "Компромисс по приоритетам принят" : "Уступка превышает готовность бота — нужно согласие человека" };
   }
 
   if (key === "warranty") {
@@ -265,21 +267,14 @@ function bargainValue(key: ParamKey, b: Param, s: Param, log: LogLine[]): Term |
           ? `${LABELS[key]}: предложение продавца выгоднее запроса покупателя — покупатель принимает «${value}».`
           : `${LABELS[key]}: с учётом приоритетов (${b.priority}% / ${s.priority}%) — «${value}».`,
       });
-      return { key, value, buyerOk: true, sellerOk: true, note: swap ? "Условие выгоднее собственного — принято" : "Компромисс по приоритетам" };
+      const buyerOk = m >= mb || mb - m <= (hi - lo) * (1 - b.priority / 100);
+      const sellerOk = m <= ms || m - ms <= (hi - lo) * (1 - s.priority / 100);
+      return { key, value, buyerOk, sellerOk, note: swap ? "Условие выгоднее собственного — принято" : buyerOk && sellerOk ? "Компромисс по приоритетам принят" : "Уступка превышает готовность бота — нужно согласие человека" };
     }
   }
 
-  // условия не сравнить по выгоде: уступает сторона с меньшим приоритетом
-  if (b.priority > s.priority) {
-    log.push({ side: "seller", text: `${LABELS[key]}: для меня это менее важно — соглашаюсь на «${bv}».` });
-    return { key, value: bv, buyerOk: true, sellerOk: true, note: "Продавец уступил (ниже приоритет)" };
-  }
-  if (s.priority > b.priority) {
-    log.push({ side: "buyer", text: `${LABELS[key]}: для меня это менее важно — соглашаюсь на «${sv}».` });
-    return { key, value: sv, buyerOk: true, sellerOk: true, note: "Покупатель уступил (ниже приоритет)" };
-  }
-  log.push({ side: "system", text: `${LABELS[key]}: одинаковая важность, решение за людьми.` });
-  return { key, value: `${bv} / ${sv}`, buyerOk: false, sellerOk: false, note: "Равный приоритет — выберите вариант" };
+  log.push({ side: "system", text: `${LABELS[key]}: условия вне типовой шкалы; не подменяю их догадкой, решение за людьми.` });
+  return { key, value: `${bv} / ${sv}`, buyerOk: false, sellerOk: false, note: "Несравнимые условия — выберите вариант" };
 }
 
 /** Торг: сначала самые важные пункты (по сумме приоритетов сторон). */
