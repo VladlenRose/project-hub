@@ -24,7 +24,7 @@ import { Link } from "@tanstack/react-router";
 import { AgreementBadge } from "@/components/agreement-badge";
 import { agreementPercent } from "@/lib/agreement";
 import { openNegotiation } from "@/lib/negotiations.functions";
-import { canBargain } from "@/lib/request-similarity";
+import { canBargain, requestSimilarity } from "@/lib/request-similarity";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { VoiceButton } from "@/components/voice-button";
 
@@ -147,6 +147,10 @@ function RequestsPage() {
   }, [ref, all]);
 
   const runBargain = useServerFn(openNegotiation);
+  const similarityFor = (r: Stored) => {
+    const my = all.find(item => item.id === ref?.id);
+    return my ? requestSimilarity(my, r, r.product_id ? sims[r.product_id] : undefined) : 0;
+  };
   const results = useQuery({
     queryKey: ["registry-negotiations", ref?.id], enabled: !!ref,
     queryFn: async () => {
@@ -160,7 +164,7 @@ function RequestsPage() {
     if (!ref) return;
     let cancelled = false;
     const run = async () => {
-      for (const r of all.filter(r => r.owner_id !== user?.id && r.kind !== ref.kind && canBargain(r.product_id === ref.productId ? 1 : r.product_id ? sims[r.product_id] ?? 0 : 0))) {
+      for (const r of all.filter(r => r.owner_id !== user?.id && r.kind !== ref.kind && canBargain(similarityFor(r)))) {
         if (cancelled) return;
         try { await runBargain({ data: { buyerId: ref.kind === "buy" ? ref.id : r.id, sellerId: ref.kind === "sell" ? ref.id : r.id } }); }
         catch { toast.error("Не удалось провести торг по одной из заявок."); }
@@ -178,7 +182,7 @@ function RequestsPage() {
       .filter((r) => !q || r.title.toLowerCase().includes(q) || (r.extra ?? "").toLowerCase().includes(q))
       // При активном подборе пар свои заявки из соответствий исключаем
       .filter((r) => !ref || r.owner_id !== user?.id)
-      .filter((r) => !ref || (r.kind !== ref.kind && canBargain(r.product_id === ref.productId ? 1 : r.product_id ? sims[r.product_id] ?? 0 : 0)))
+      .filter((r) => !ref || (r.kind !== ref.kind && canBargain(similarityFor(r))))
       .map((r) => ({ r, score: results.data?.find(n => n.buyer_request_id === (ref?.kind === "buy" ? ref.id : r.id) && n.seller_request_id === (ref?.kind === "sell" ? ref.id : r.id))?.snapshot }));
     return list;
   }, [all, filter, query, ref, sims, user?.id, results.data]);
