@@ -26,10 +26,10 @@ import { getProfile } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { label: "Главная", to: "/dashboard", icon: LayoutGrid },
+  { label: "Профиль", to: "/dashboard", icon: LayoutGrid },
   { label: "Каталог", to: "/catalog", icon: Store },
+  { label: "Мои товары и услуги", to: "/seller", icon: Package, sub: true },
   { label: "Торговые заявки", to: "/requests", icon: Inbox },
-  { label: "Мои товары и услуги", to: "/seller", icon: Package },
   { label: "Чат-переговоры", to: "/chat", icon: MessagesSquare },
   { label: "Документы", to: "/documents", icon: FileText },
   { label: "Настройки", to: "/profile", icon: Settings },
@@ -121,7 +121,7 @@ export function AppShell({
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/profile">Профиль и настройки</Link>
+                <Link to="/dashboard">Мой профиль</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/documents">Документы</Link>
@@ -156,6 +156,7 @@ export function AppShell({
                   onClick={() => setOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                    "sub" in item && "ml-5 py-2 text-[13px]",
                     active
                       ? "bg-brand text-brand-foreground"
                       : "text-dim hover:bg-foreground/5 hover:text-ink",
