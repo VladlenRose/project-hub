@@ -522,3 +522,35 @@ export async function listProductRequests(productId: string) {
   if (error) throw error;
   return data ?? [];
 }
+
+/* ---------------- public profiles & request history ---------------- */
+
+export type PublicProfile = { user_id: string; name: string | null; company: string | null };
+
+export async function getPublicProfiles(ids: string[]) {
+  const uniq = [...new Set(ids.filter(Boolean))];
+  if (!uniq.length) return {} as Record<string, PublicProfile>;
+  const { data, error } = await supabase.rpc("public_profiles", { _ids: uniq });
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map((p) => [p.user_id, p])) as Record<string, PublicProfile>;
+}
+
+export async function listUserRequests(userId: string) {
+  const { data, error } = await supabase
+    .from("trade_requests")
+    .select("id, kind, title, params, created_at, product_id")
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function listProductRequestsWithOwners(productId: string) {
+  const { data, error } = await supabase
+    .from("trade_requests")
+    .select("id, kind, title, owner_id, created_at")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
