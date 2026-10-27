@@ -43,6 +43,13 @@
       "when": 1792842160025,
       "tag": "0005_negotiation_contract_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793133451717,
+      "tag": "0006_catalog_via_requests_public_profiles",
+      "breakpoints": true
     }
   ]
 }
