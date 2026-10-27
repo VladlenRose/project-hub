@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2, Search, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
-import { createMessage, createThread, imageUrl, listCatalogProducts, type Product } from "@/lib/api";
+import { createMessage, createThread, getPublicProfiles, imageUrl, listCatalogProducts, listProductRequestsWithOwners, productRequestCounts, type Product } from "@/lib/api";
 
 import { CATEGORIES, fallbackImage } from "@/lib/catalog-meta";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,16 @@ function Catalog() {
   const [minRating, setMinRating] = useState(0);
 
   const productsQuery = useQuery({ queryKey: ["products", "catalog"], queryFn: listCatalogProducts });
-  const products = productsQuery.data ?? [];
+  const allProducts = productsQuery.data ?? [];
+  const [kindTab, setKindTab] = useState<"product" | "service">("product");
+  const countsQuery = useQuery({
+    queryKey: ["product-request-counts", allProducts.map((p) => p.$id).join(",")],
+    queryFn: () => productRequestCounts(allProducts.map((p) => p.$id)),
+    enabled: allProducts.length > 0,
+  });
+  const counts = countsQuery.data ?? {};
+  // В каталоге только товары/услуги, созданные под заявку.
+  const products = allProducts.filter((p) => (counts[p.$id] ?? 0) > 0 && (p.kind ?? "product") === kindTab);
 
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -188,13 +197,23 @@ function Catalog() {
             )}
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(["product", "service"] as const).map((k) => (
+              <button key={k} type="button" onClick={() => setKindTab(k)}
+                className={cn("rounded-full border px-4 py-1.5 text-sm", kindTab === k ? "border-brand bg-brand text-brand-foreground" : "border-border text-dim")}>
+                {k === "product" ? "Товары" : "Услуги"}
+              </button>
+            ))}
+            <Link to="/seller" className="ml-auto text-sm text-brand hover:underline">Мои товары и услуги →</Link>
+          </div>
+
           <div className="mt-4 text-sm text-dim">
             {productsQuery.isLoading ? "Загружаем товары…" : `Найдено позиций: ${items.length}`}
           </div>
 
           {!productsQuery.isLoading && items.length === 0 && (
             <div className="glass-panel mt-4 rounded-2xl p-8 text-center text-sm text-dim">
-              Товары не найдены. Опубликуйте первый товар в кабинете продавца.
+              Ничего не найдено. Товары и услуги появляются здесь после создания заявки.
             </div>
           )}
 
@@ -215,7 +234,11 @@ function Catalog() {
                   )}
                 </div>
                 <div className="flex flex-1 flex-col p-5">
-                  <div className="text-xs text-dim">{p.supplier}</div>
+                  <div className="flex flex-wrap gap-1.5 text-[11px]">
+                    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-brand">{p.kind === "service" ? "Услуга" : "Товар"}</span>
+                    <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-dim">{p.category || "Без категории"}</span>
+                  </div>
+                  <div className="mt-1.5 text-xs text-dim">{p.supplier}</div>
                   <h3 className="mt-1.5 text-sm font-medium leading-snug text-ink">{p.title}</h3>
                   {p.description && (
                     <p className="mt-2 line-clamp-2 text-xs text-dim">{p.description}</p>
@@ -229,6 +252,7 @@ function Catalog() {
                       {(p.price ?? 0).toLocaleString("ru-RU")} ₽
                     </div>
                     <div className="text-xs text-dim">{p.unit}</div>
+                    <ProductRequests productId={p.$id} count={counts[p.$id] ?? 0} />
                     <Button
                       variant="hero"
                       className="mt-4 h-11 w-full"
@@ -246,5 +270,38 @@ function Catalog() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function ProductRequests({ productId, count }: { productId: string; count: number }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({
+    queryKey: ["product-requests", productId],
+    queryFn: async () => {
+      const rows = await listProductRequestsWithOwners(productId);
+      const owners = await getPublicProfiles(rows.map((r) => r.owner_id));
+      return rows.map((r) => ({ ...r, owner: owners[r.owner_id] }));
+    },
+    enabled: open,
+  });
+  return (
+    <div className="mt-3 text-xs">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="text-brand hover:underline">
+        Заявки по позиции: {count} {open ? "▲" : "▼"}
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1.5">
+          {(q.data ?? []).map((r) => (
+            <li key={r.id} className="flex items-center gap-2">
+              <span className="text-dim">{r.kind === "buy" ? "Покупка" : "Продажа"}</span>
+              <Link to="/u/$userId" params={{ userId: r.owner_id }} className="truncate text-ink hover:text-brand">
+                {r.owner?.company || r.owner?.name || "Участник"}
+              </Link>
+              <span className="ml-auto font-mono text-dim">{new Date(r.created_at).toLocaleDateString("ru-RU")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

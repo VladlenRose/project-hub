@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Archive, ImagePlus, Loader2, Lock, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useState } from "react";
@@ -145,109 +145,13 @@ function Seller() {
   const imageOf = (p: Product) => imageUrl(p.imageId) ?? fallbackImage(p.$id);
 
   return (
-    <AppShell title="Мои товары и услуги">
+    <AppShell title="Каталог · Мои товары и услуги">
       <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <form
-          className="glass-panel h-fit rounded-2xl p-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!title.trim() || !price.trim()) {
-              toast.error("Заполните название и цену");
-              return;
-            }
-            create.mutate();
-          }}
-        >
-          <h2 className="text-base font-semibold text-ink">Добавить {kind === "service" ? "услугу" : "товар"}</h2>
-          <div className="mt-3 inline-flex rounded-full border border-border p-1">
-            {(["product", "service"] as const).map((k) => (
-              <button key={k} type="button" onClick={() => { setKind(k); setUnit(k === "service" ? "час" : "шт"); }}
-                className={cn("rounded-full px-4 py-1 text-xs font-medium", kind === k ? "bg-brand text-brand-foreground" : "text-dim")}>
-                {k === "service" ? "Услуга" : "Товар"}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="p-title">Название</Label>
-              <Input
-                id="p-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Кружки с логотипом"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-desc">Описание</Label>
-              <Textarea
-                id="p-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Материал, объём партии, сроки"
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="p-price">{kind === "service" ? "Стоимость за ед. времени, ₽" : "Цена, ₽"}</Label>
-                <Input
-                  id="p-price"
-                  inputMode="numeric"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="350"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-unit">{kind === "service" ? "Единица времени" : "Единица"}</Label>
-                <Input id="p-unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>{kind === "service" ? "Срок оказания" : "Остаток"}</Label>
-                <Input value={a1} onChange={(e) => setA1(e.target.value)} placeholder={kind === "service" ? "5 рабочих дней" : "1200 шт"} />
-              </div>
-              <div className="space-y-2">
-                <Label>{kind === "service" ? "Мин. объём" : "Вес единицы"}</Label>
-                <Input value={a2} onChange={(e) => setA2(e.target.value)} placeholder={kind === "service" ? "от 4 часов" : "0,4 кг"} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Категория</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.slice(1).map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 p-6 text-center transition-colors hover:border-brand/40">
-              <ImagePlus className="size-5 text-dim" />
-              <span className="text-sm text-dim">
-                {file ? file.name : "Загрузить фото товара"}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-
-            <Button type="submit" variant="hero" className="h-11 w-full" disabled={create.isPending}>
-              {create.isPending ? <Loader2 className="size-4 animate-spin" /> : "Опубликовать"}
-            </Button>
-          </div>
-        </form>
+        <div className="glass-panel h-fit rounded-2xl p-6 text-sm text-dim">
+          <h2 className="text-base font-semibold text-ink">Как добавить товар или услугу</h2>
+          <p className="mt-3">Товары и услуги создаются только через заявку. Создайте заявку на продажу или покупку — карточка появится в каталоге и здесь.</p>
+          <Link to="/requests" className="mt-4 inline-block font-medium text-brand hover:underline">Создать заявку →</Link>
+        </div>
 
         <section className="glass-panel overflow-hidden rounded-2xl">
           <div className="border-b border-border px-6 py-4 text-base font-semibold text-ink">

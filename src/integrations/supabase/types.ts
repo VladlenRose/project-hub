@@ -543,6 +543,14 @@ export type Database = {
           product_id: string
         }[]
       }
+      public_profiles: {
+        Args: { _ids: string[] }
+        Returns: {
+          company: string
+          name: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"

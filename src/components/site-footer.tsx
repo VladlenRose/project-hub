@@ -2,7 +2,6 @@ const COLUMNS = [
   {
     title: "Платформа",
     links: [
-      { label: "Каталог", href: "#catalog" },
       { label: "Как это работает", href: "#how" },
       { label: "Документация", href: "#docs" },
     ],
@@ -10,7 +9,6 @@ const COLUMNS = [
   {
     title: "Партнёрам",
     links: [
-      { label: "Стать продавцом", href: "#seller" },
       { label: "Интеграции", href: "#partners" },
       { label: "API", href: "#docs" },
     ],

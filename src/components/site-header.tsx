@@ -1,9 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button } from "@/components/ui/button";
 
 const NAV = [
-  { label: "Каталог", href: "#catalog" },
   { label: "Как это работает", href: "#how" },
   { label: "Партнёрам", href: "#partners" },
   { label: "Документация", href: "#docs" },
@@ -39,9 +37,6 @@ export function SiteHeader() {
           >
             Войти
           </Link>
-          <Button variant="pill" size="default" asChild>
-            <Link to="/seller">Стать продавцом</Link>
-          </Button>
         </div>
       </div>
     </header>

@@ -18,6 +18,7 @@ import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RequestsRouteImport } from './routes/requests'
 import { Route as SellerRouteImport } from './routes/seller'
+import { Route as UUserIdRouteImport } from './routes/u/$userId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +65,11 @@ const SellerRoute = SellerRouteImport.update({
   path: '/seller',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UUserIdRoute = UUserIdRouteImport.update({
+  id: '/u/$userId',
+  path: '/u/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
   '/seller': typeof SellerRoute
+  '/u/$userId': typeof UUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
   '/seller': typeof SellerRoute
+  '/u/$userId': typeof UUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
   '/seller': typeof SellerRoute
+  '/u/$userId': typeof UUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/requests'
     | '/seller'
+    | '/u/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/requests'
     | '/seller'
+    | '/u/$userId'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/requests'
     | '/seller'
+    | '/u/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   RequestsRoute: typeof RequestsRoute
   SellerRoute: typeof SellerRoute
+  UUserIdRoute: typeof UUserIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SellerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/u/$userId': {
+      id: '/u/$userId'
+      path: '/u/$userId'
+      fullPath: '/u/$userId'
+      preLoaderRoute: typeof UUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   RequestsRoute: RequestsRoute,
   SellerRoute: SellerRoute,
+  UUserIdRoute: UUserIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

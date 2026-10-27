@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FileText, MessagesSquare, Package, Store } from "lucide-react";
+import { FileText, MessagesSquare, Package } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { ProfileRequests } from "@/components/profile-requests";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { listDocuments, listMyProducts, listProducts, listThreads } from "@/lib/api";
+import { listDocuments, listMyProducts, listThreads } from "@/lib/api";
 
-const TITLE = "Дашборд AI-Mall — заявки, переговоры и документы";
+const TITLE = "Мой профиль AI-Mall — заявки, переговоры и документы";
 const DESCRIPTION =
   "Личный кабинет AI-Mall: статистика заявок, сообщения ИИ-агентов и лента активности по сделкам.";
 
@@ -43,7 +44,6 @@ function Dashboard() {
     queryFn: () => listMyProducts(user!.id),
     enabled: !!user,
   });
-  const all = useQuery({ queryKey: ["products"], queryFn: listProducts });
 
   const stats = [
     {
@@ -59,7 +59,6 @@ function Dashboard() {
       to: "/documents" as const,
     },
     { label: "Мои товары и услуги", value: (mine.data ?? []).length, icon: Package, to: "/seller" as const },
-    { label: "Товаров в каталоге", value: (all.data ?? []).length, icon: Store, to: "/catalog" as const },
   ];
 
   const activity = [...(threads.data ?? [])]
@@ -67,8 +66,9 @@ function Dashboard() {
     .slice(0, 6);
 
   return (
-    <AppShell title={`Добрый день, ${user?.name?.split(" ")[0] ?? ""}`.trim()}>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <AppShell title={`Профиль · ${user?.name ?? ""}`}>
+      {user && <ProfileRequests userId={user.id} />}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -115,13 +115,7 @@ function Dashboard() {
           <h2 className="text-base font-semibold text-ink">Быстрые действия</h2>
           <div className="mt-5 flex flex-col gap-3">
             <Button variant="hero" className="h-11 w-full" asChild>
-              <Link to="/requests">Создать ИИ-заявку</Link>
-            </Button>
-            <Button variant="outline" className="h-11 w-full rounded-full" asChild>
-              <Link to="/catalog">Найти товары</Link>
-            </Button>
-            <Button variant="outline" className="h-11 w-full rounded-full" asChild>
-              <Link to="/seller">Добавить товар</Link>
+              <Link to="/requests">Создать заявку</Link>
             </Button>
             <Button variant="outline" className="h-11 w-full rounded-full" asChild>
               <Link to="/chat">Открыть переговоры</Link>

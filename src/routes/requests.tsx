@@ -649,7 +649,8 @@ function RequestsPage() {
                   <DialogTitle>{open.title}</DialogTitle>
                 </DialogHeader>
                 <div className="text-xs text-dim">
-                  {open.kind === "buy" ? "Покупка" : "Продажа"} · {new Date(open.created_at).toLocaleDateString("ru-RU")}
+                  {open.kind === "buy" ? "Покупка" : "Продажа"} · {new Date(open.created_at).toLocaleDateString("ru-RU")} ·{" "}
+                  <Link to="/u/$userId" params={{ userId: open.owner_id }} className="text-brand hover:underline">Профиль автора</Link>
                 </div>
                 <dl className="divide-y divide-border text-sm">
                   {[...KEYS]

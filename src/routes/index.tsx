@@ -4,9 +4,6 @@ import { FileSignature, MessagesSquare, Search } from "lucide-react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { imageUrl, listCatalogProducts } from "@/lib/api";
-import { fallbackImage } from "@/lib/catalog-meta";
 
 const TITLE = "AI-Mall — умный B2B маркетплейс с ИИ-агентами";
 const DESCRIPTION =
@@ -43,55 +40,6 @@ const BENEFITS = [
     text: "Договор, счёт и спецификация собираются сами — без ручного переноса цифр.",
   },
 ];
-
-function HomeProducts() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["products", "catalog"],
-    queryFn: listCatalogProducts,
-  });
-  const items = (data ?? []).filter((p) => p.status !== "Завершён").slice(0, 3);
-
-  if (isLoading) return <p className="text-sm text-dim">Загружаем товары…</p>;
-  if (items.length === 0)
-    return (
-      <p className="rounded-2xl bg-card p-8 text-center text-sm text-dim ring-1 ring-border">
-        Пока нет товаров. Опубликуйте первый товар в кабинете продавца.
-      </p>
-    );
-
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((p) => (
-        <article
-          key={p.$id}
-          className="overflow-hidden rounded-2xl bg-card ring-1 ring-border transition duration-300 hover:ring-brand/25"
-        >
-          <img
-            src={imageUrl(p.imageId) ?? fallbackImage(p.$id)}
-            alt={p.title}
-            loading="lazy"
-            className="aspect-[4/3] w-full object-cover"
-          />
-          <div className="p-5">
-            <p className="font-mono text-[11px] uppercase tracking-wider text-dim">
-              {[p.category, p.supplier].filter(Boolean).join(" · ")}
-            </p>
-            <h3 className="mt-1.5 text-base font-semibold tracking-tight">{p.title}</h3>
-            <div className="mt-3 flex items-end justify-between">
-              <span className="text-lg font-semibold">
-                {(p.price ?? 0).toLocaleString("ru-RU")} ₽{p.unit ? ` / ${p.unit}` : ""}
-              </span>
-              <span className="font-mono text-xs text-dim">{p.rating || "—"}</span>
-            </div>
-            <Button variant="pill" className="mt-4 w-full" asChild>
-              <Link to="/catalog">Запросить предложение</Link>
-            </Button>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
 
 const STEPS = [
   { n: 1, title: "Заявка", text: "Опишите потребность — агент разберёт параметры." },
@@ -134,12 +82,6 @@ function Index() {
             </p>
 
             <div className="animate-rise mt-9 flex flex-wrap items-center gap-4 [animation-delay:520ms]">
-              <Button variant="hero" size="xl" asChild>
-                <Link to="/seller">
-                  <span className="relative z-10">Стать продавцом</span>
-                  <span aria-hidden className="sheen" />
-                </Link>
-              </Button>
               <Button variant="heroGhost" size="xl" asChild>
                 <Link to="/catalog">
                   <span className="relative z-10">Найти товары</span>
@@ -170,28 +112,6 @@ function Index() {
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* Catalog */}
-        <section id="catalog" className="border-t border-border bg-mist/60 py-20 md:py-28">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="mb-12 flex items-end justify-between">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-[0.15em] text-dim">Каталог</p>
-                <h2 className="mt-2 text-3xl font-bold tracking-tight">
-                  Предложения, подобранные агентом
-                </h2>
-              </div>
-              <Link
-                to="/catalog"
-                className="hidden text-sm text-brand transition-colors hover:underline sm:block"
-              >
-                Смотреть все
-              </Link>
-            </div>
-
-            <HomeProducts />
           </div>
         </section>
 
